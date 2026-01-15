@@ -1,0 +1,84 @@
+/* TUS ESTILOS ORIGINALES ADAPTADOS */
+body {
+  background-color: rgb(83, 83, 184);
+  color: white; /* Agregué esto para que el texto se lea mejor */
+}
+
+.carousel img {
+  max-width: 100%;
+  height: 400px; /* Ajusté la altura para que se vea parejo */
+  object-fit: cover;
+}
+
+.card {
+  background-color: rgb(71, 198, 130);
+  border: none;
+  transition: transform 0.3s;
+}
+
+.card:hover {
+  transform: scale(1.03); /* Efecto zoom al pasar el mouse */
+}
+
+.card-title-container {
+  margin-top: 10px;
+}
+
+.section-title {
+  background-color: rgba(229, 101, 3, 0.878);
+  color: rgb(28, 47, 135);
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  display: inline-block;
+}
+
+/* ESTILOS DEL CHAT FLOTANTE (NUEVO) */
+.chat-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 350px;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  background: #1c2f87;
+  color: white;
+  padding: 15px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.chat-body {
+  height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+  background: #f8f9fa;
+  color: black;
+}
+
+.chat-input {
+  display: flex;
+  border-top: 1px solid #ccc;
+}
+
+.chat-input input {
+  flex: 1;
+  border: none;
+  padding: 10px;
+  outline: none;
+}
+
+.chat-input button {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0 15px;
+}
