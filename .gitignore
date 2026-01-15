@@ -1,4 +1,21 @@
-# Logs
+# --- Dependencias y Compilación ---
+node_modules
+/dist
+/dist-ssr
+*.local
+.npm
+.eslintcache
+
+# --- SEGURIDAD: ARCHIVOS DE ENTORNO (CRÍTICO) ---
+# Estos archivos contienen tus API Keys y NUNCA deben subirse a GitHub
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.sample
+
+# --- Logs y Debugging ---
 logs
 *.log
 npm-debug.log*
@@ -7,12 +24,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# --- Directorios de Editores (VS Code, IntelliJ, etc) ---
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +34,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# --- Archivos temporales de Sistema ---
+Thumbs.db
+desktop.ini

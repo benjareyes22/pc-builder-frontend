@@ -1,154 +1,146 @@
-import { useState } from 'react';
-import './index.css';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { Navbar, Nav, Container, NavDropdown, Badge, Button, Offcanvas, ListGroup } from 'react-bootstrap';
+import { supabase } from './supabase'; 
+import { CartProvider, useCart } from './context/CartContext';
 
-// 1. TU INVENTARIO (Aquí metí tus productos para que React los "lea")
-const inventario = [
-  { id: 1, nombre: "Tarjeta de Video Gigabyte RTX 3060 Ti", precio: 365000, img: "/3060ti.jpg" },
-  { id: 2, nombre: "Procesador AMD Ryzen 5 5600G", precio: 135000, img: "/Ryzen5.jpg" },
-  { id: 3, nombre: "Kit Gamer Monster 4 en 1", precio: 16990, img: "/kitGamer.jpg" },
-  { id: 4, nombre: "Placa Madre GIGABYTE Z790 AORUS", precio: 320000, img: "/placamaire.jpg" }, // Ojo con el nombre del archivo
-  { id: 5, nombre: "PC Gamer Navi 7900XTX (Armado)", precio: 1300000, img: "/pcArmaoR5.jpg" },
-  { id: 6, nombre: "Micrófono HyperX QUADCAST", precio: 90000, img: "/microfono.jpg" },
-];
+// Páginas
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Builder from './pages/Builder';
+import SavedBuilds from './pages/SavedBuilds';
+import Components from './pages/Components';
+import AdminPanel from './pages/AdminPanel';
 
-function App() {
-  // Estados para el Chat
-  const [chatAbierto, setChatAbierto] = useState(false);
-  const [mensajes, setMensajes] = useState([{ sender: 'ia', text: '¡Hola! Soy el experto de PC Hub. ¿Buscas algo para jugar o trabajar?' }]);
-  const [input, setInput] = useState("");
-  const [cargando, setCargando] = useState(false);
+const Navigation = () => {
+  const { cart, showCart, setShowCart, removeFromCart, total, clearCart } = useCart();
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState('cliente');
 
-  // Función para enviar mensaje a TU Backend
-  const enviarMensaje = async () => {
-    if (!input.trim()) return;
-    
-    const nuevoMensaje = { sender: 'user', text: input };
-    setMensajes([...mensajes, nuevoMensaje]);
-    setInput("");
-    setCargando(true);
+  useEffect(() => {
+    const getData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) fetchRole(user.id);
+    };
+    getData();
 
-    try {
-      // AQUÍ LE MANDAMOS EL INVENTARIO A LA IA COMO "CONTEXTO"
-      const promptContexto = `
-        Eres el vendedor experto de la tienda "PC Hub".
-        Tus productos disponibles son EXACTAMENTE estos: ${JSON.stringify(inventario)}.
-        
-        Reglas:
-        1. Si el usuario pide una recomendación, busca SOLO en la lista de arriba.
-        2. Menciona el precio exacto de la lista.
-        3. Si no tenemos el producto, dilo amablemente y sugiere otro de la lista.
-        4. Responde corto y carismático.
-        
-        Usuario dice: "${input}"
-      `;
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchRole(session.user.id);
+      else setRole('cliente');
+    });
 
-      const response = await fetch('http://localhost:3000/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensaje: promptContexto })
-      });
-      
-      const data = await response.json();
-      setMensajes(prev => [...prev, { sender: 'ia', text: data.respuesta }]);
-    } catch (error) {
-      setMensajes(prev => [...prev, { sender: 'ia', text: "🔴 Error: No puedo conectar con el servidor." }]);
-    }
-    setCargando(false);
+    return () => authListener.subscription.unsubscribe();
+  }, []);
+
+  const fetchRole = async (userId) => {
+    const { data } = await supabase.from('perfiles').select('rol').eq('id', userId).single();
+    if (data) setRole(data.rol);
   };
 
+  const isStaff = role === 'admin' || role === 'moderador';
+
   return (
-    <div>
-      {/* --- NAVBAR --- */}
-      <nav className="navbar navbar-expand-lg bg-light navbar-light">
-        <div className="container-fluid">
-          <a className="navbar-brand fw-bold" href="#">PC HUB 🤖</a>
-          <div className="collapse navbar-collapse">
-            <ul className="navbar-nav me-auto">
-              <li className="nav-item"><a className="nav-link active" href="#">Inicio</a></li>
-              <li className="nav-item"><a className="nav-link" href="#">Componentes</a></li>
-            </ul>
-          </div>
-        </div>
-      </nav>
+    <>
+      <Navbar bg="dark" variant="dark" expand="lg" className="shadow-sm py-3 sticky-top">
+        <Container>
+          <Navbar.Brand as={Link} to="/" className="fw-bold text-warning fs-4">⚡ PC-BUILDER AI</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="me-auto">
+              <Nav.Link as={Link} to="/">Inicio</Nav.Link>
+              
+              {/* MENÚ DE COMPONENTES COMPLETO RE-ACTIVADO */}
+              <NavDropdown title="Componentes" id="nav-dropdown">
+                <NavDropdown.Item as={Link} to="/componentes/gpu">Tarjetas Gráficas</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/cpu">Procesadores</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/ram">Memorias RAM</NavDropdown.Item>
+                <NavDropdown.Divider />
+                <NavDropdown.Item as={Link} to="/componentes/Case">Gabinetes</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/PSU">Fuentes de Poder</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/Storage">Almacenamiento</NavDropdown.Item>
+                <NavDropdown.Divider />
+                <NavDropdown.Item as={Link} to="/componentes/all">Ver Catálogo Completo</NavDropdown.Item>
+              </NavDropdown>
 
-      {/* --- CAROUSEL (Simplificado) --- */}
-      <div id="carouselExample" className="carousel slide" data-bs-ride="carousel">
-        <div className="carousel-inner">
-          <div className="carousel-item active">
-            {/* Asegúrate de tener esta imagen en /public */}
-            <img src="/Tarjetasgraficas.jpg" className="d-block w-100" alt="Banner" />
-            <div className="carousel-caption d-none d-md-block bg-dark opacity-75 rounded">
-              <h5>POTENCIA TU JUEGO</h5>
-              <p>Las mejores RTX están aquí.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+              <Nav.Link as={Link} to="/mis-cotizaciones">📁 Mis Cotizaciones</Nav.Link>
+              
+              {isStaff && (
+                <Nav.Link as={Link} to="/admin" className="text-info fw-bold border border-info rounded px-2 ms-lg-2 mt-2 mt-lg-0">
+                   {role === 'admin' ? '👤 Panel Jefe' : '🛡️ Moderación'}
+                </Nav.Link>
+              )}
+            </Nav>
 
-      {/* --- GRILLA DE PRODUCTOS --- */}
-      <div className="container mt-5 text-center">
-        <h1 className="section-title">🔥 Los productos más comprados</h1>
-        
-        <div className="row row-cols-1 row-cols-md-3 g-4">
-          {inventario.map((producto) => (
-            <div className="col" key={producto.id}>
-              <div className="card h-100">
-                <img src={producto.img} className="card-img-top p-3" alt={producto.nombre} style={{borderRadius: '20px'}} />
-                <div className="card-body text-start text-white">
-                  <h3 className="fw-bold">${producto.precio.toLocaleString('es-CL')}</h3>
-                  <p className="card-text">{producto.nombre}</p>
-                  <button className="btn btn-primary w-100">Ver Detalles</button>
-                </div>
+            <Nav className="gap-2 mt-3 mt-lg-0">
+              <Button as={Link} to="/cotizador" variant="warning" size="sm" className="fw-bold text-dark">🤖 Armar PC</Button>
+              
+              <Button variant="outline-light" size="sm" onClick={() => setShowCart(true)} className="position-relative">
+                🛒 Carrito
+                {cart.length > 0 && (
+                  <Badge bg="danger" pill className="position-absolute top-0 start-100 translate-middle">
+                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                  </Badge>
+                )}
+              </Button>
+
+              {user ? (
+                <NavDropdown title={`Hola, ${role.toUpperCase()}`} id="user-dropdown" align="end">
+                  <NavDropdown.Item disabled className="small text-muted">{user.email}</NavDropdown.Item>
+                  <NavDropdown.Divider />
+                  <NavDropdown.Item onClick={() => supabase.auth.signOut()}>Cerrar Sesión</NavDropdown.Item>
+                </NavDropdown>
+              ) : (
+                <Button as={Link} to="/login" variant="light" size="sm">Entrar</Button>
+              )}
+            </Nav>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
+
+      <Offcanvas show={showCart} onHide={() => setShowCart(false)} placement="end">
+        <Offcanvas.Header closeButton><Offcanvas.Title>🛒 Tu Carrito</Offcanvas.Title></Offcanvas.Header>
+        <Offcanvas.Body>
+          {cart.length === 0 ? <p className="text-center mt-5">Tu carrito está vacío</p> : (
+            <>
+              <ListGroup variant="flush">
+                {cart.map(item => (
+                  <ListGroup.Item key={item.id} className="d-flex justify-content-between align-items-center">
+                    <div><b>{item.nombre}</b><br/><small>{item.quantity} x ${item.precio.toLocaleString()}</small></div>
+                    <Button variant="outline-danger" size="sm" onClick={() => removeFromCart(item.id)}>🗑️</Button>
+                  </ListGroup.Item>
+                ))}
+              </ListGroup>
+              <div className="mt-3 border-top pt-3">
+                <h5>Total: <span className="text-success">${total.toLocaleString()}</span></h5>
+                <Button variant="warning" className="w-100 mt-2 fw-bold" onClick={() => alert("¡Gracias por tu compra!")}>Finalizar Compra</Button>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            </>
+          )}
+        </Offcanvas.Body>
+      </Offcanvas>
+    </>
+  );
+};
 
-      {/* --- CHATBOT FLOTANTE --- */}
-      <div className="chat-widget">
-        <div className="chat-header" onClick={() => setChatAbierto(!chatAbierto)}>
-          🤖 Asistente PC Hub {chatAbierto ? '▼' : '▲'}
-        </div>
-        
-        {chatAbierto && (
-          <>
-            <div className="chat-body">
-              {mensajes.map((msg, i) => (
-                <div key={i} style={{ 
-                  textAlign: msg.sender === 'user' ? 'right' : 'left',
-                  margin: '5px 0' 
-                }}>
-                  <span style={{
-                    background: msg.sender === 'user' ? '#007bff' : '#e9ecef',
-                    color: msg.sender === 'user' ? 'white' : 'black',
-                    padding: '8px 12px',
-                    borderRadius: '15px',
-                    display: 'inline-block'
-                  }}>
-                    {msg.text}
-                  </span>
-                </div>
-              ))}
-              {cargando && <small className="text-muted">Escribiendo...</small>}
-            </div>
-            <div className="chat-input">
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && enviarMensaje()}
-                placeholder="Pregunta por un PC..."
-              />
-              <button onClick={enviarMensaje}>Enviar</button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div style={{height: '100px'}}></div> {/* Espacio extra abajo */}
-    </div>
+export default function App() {
+  return (
+    <CartProvider>
+      <Router>
+        <Navigation />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/cotizador" element={<Builder />} />
+          <Route path="/mis-cotizaciones" element={<SavedBuilds />} />
+          <Route path="/componentes/:tipo" element={<Components />} />
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Router>
+    </CartProvider>
   );
 }
-
-export default App;
