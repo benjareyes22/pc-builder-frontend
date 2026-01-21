@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
-import { supabase } from '../supabase'; // Tu llave maestra
+import { supabase } from '../supabase'; 
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null); // Para mostrar errores o éxito
-  const [isError, setIsError] = useState(false); // ¿Es mensaje bueno o malo?
-
+  const [message, setMessage] = useState(null); 
+  const [isError, setIsError] = useState(false); 
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
@@ -18,7 +17,6 @@ export default function Register() {
     setMessage(null);
 
     try {
-      // 1. Enviamos los datos a Supabase para crear el usuario
       const { data, error } = await supabase.auth.signUp({
         email: email,
         password: password,
@@ -26,11 +24,10 @@ export default function Register() {
 
       if (error) throw error;
 
-      // 2. Si sale bien:
+      
       setIsError(false);
       setMessage("¡Cuenta creada con éxito! Ahora puedes iniciar sesión.");
       
-      // Opcional: Esperar 2 segundos y mandar al Login
       setTimeout(() => {
         navigate('/login');
       }, 2000);

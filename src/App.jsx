@@ -4,7 +4,8 @@ import { Navbar, Nav, Container, NavDropdown, Badge, Button, Offcanvas, ListGrou
 import { supabase } from './supabase'; 
 import { CartProvider, useCart } from './context/CartContext';
 
-// Páginas
+// Importación de Páginas
+import ProductDetail from './pages/ProductDetail'; // <--- YA LO TENÍAS AQUÍ, ¡BIEN!
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -52,15 +53,15 @@ const Navigation = () => {
             <Nav className="me-auto">
               <Nav.Link as={Link} to="/">Inicio</Nav.Link>
               
-              {/* MENÚ DE COMPONENTES COMPLETO RE-ACTIVADO */}
               <NavDropdown title="Componentes" id="nav-dropdown">
                 <NavDropdown.Item as={Link} to="/componentes/gpu">Tarjetas Gráficas</NavDropdown.Item>
                 <NavDropdown.Item as={Link} to="/componentes/cpu">Procesadores</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/motherboard">Placas Madre</NavDropdown.Item>
                 <NavDropdown.Item as={Link} to="/componentes/ram">Memorias RAM</NavDropdown.Item>
                 <NavDropdown.Divider />
-                <NavDropdown.Item as={Link} to="/componentes/Case">Gabinetes</NavDropdown.Item>
-                <NavDropdown.Item as={Link} to="/componentes/PSU">Fuentes de Poder</NavDropdown.Item>
-                <NavDropdown.Item as={Link} to="/componentes/Storage">Almacenamiento</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/case">Gabinetes</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/psu">Fuentes de Poder</NavDropdown.Item>
+                <NavDropdown.Item as={Link} to="/componentes/storage">Almacenamiento</NavDropdown.Item>
                 <NavDropdown.Divider />
                 <NavDropdown.Item as={Link} to="/componentes/all">Ver Catálogo Completo</NavDropdown.Item>
               </NavDropdown>
@@ -108,7 +109,7 @@ const Navigation = () => {
               <ListGroup variant="flush">
                 {cart.map(item => (
                   <ListGroup.Item key={item.id} className="d-flex justify-content-between align-items-center">
-                    <div><b>{item.nombre}</b><br/><small>{item.quantity} x ${item.precio.toLocaleString()}</small></div>
+                    <div><b>{item.nombre}</b><br/><small>{item.quantity} x ${parseInt(item.precio).toLocaleString()}</small></div>
                     <Button variant="outline-danger" size="sm" onClick={() => removeFromCart(item.id)}>🗑️</Button>
                   </ListGroup.Item>
                 ))}
@@ -138,6 +139,11 @@ export default function App() {
           <Route path="/mis-cotizaciones" element={<SavedBuilds />} />
           <Route path="/componentes/:tipo" element={<Components />} />
           <Route path="/admin" element={<AdminPanel />} />
+          
+          {/* 👇 ESTA ES LA LÍNEA QUE TE FALTABA 👇 */}
+          <Route path="/producto/:id" element={<ProductDetail />} />
+          {/* ☝️ -------------------------------- ☝️ */}
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>

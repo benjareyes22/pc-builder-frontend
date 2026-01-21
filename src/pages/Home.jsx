@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 export default function Home() {
   return (
     <div>
-      {/* --- HERO SECTION (Banner Principal) --- */}
       <div className="bg-dark text-white text-center py-5" style={{ 
         backgroundImage: 'linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("https://images.unsplash.com/photo-1587202372775-e229f172b9d7?q=80&w=2574&auto=format&fit=crop")',
         backgroundSize: 'cover',
@@ -30,8 +29,6 @@ export default function Home() {
           </div>
         </Container>
       </div>
-
-      {/* --- CARACTERÍSTICAS (Ventajas) --- */}
       <Container className="my-5">
         <Row className="text-center g-4">
           <Col md={4}>
@@ -63,9 +60,6 @@ export default function Home() {
           </Col>
         </Row>
       </Container>
-
-      {/* --- LLAMADO A LA ACCIÓN SECUNDARIO --- */}
-      {/* AQUÍ ESTABA EL ERROR: Agregué 'text-dark' para que las letras se vean negras sobre el fondo blanco */}
       <div className="bg-light py-5 text-dark">
         <Container>
           <Row className="align-items-center">
@@ -79,7 +73,7 @@ export default function Home() {
             </Col>
             <Col md={6}>
               <h2 className="fw-bold text-dark">¿Buscas una pieza específica?</h2>
-              <p className="text-secondary"> {/* Usamos text-secondary para un gris oscuro legible */}
+              <p className="text-secondary">
                 Explora nuestro catálogo completo de Tarjetas de Video, Procesadores, Gabinetes y más. Tenemos stock actualizado.
               </p>
               <Button as={Link} to="/componentes/all" variant="dark">

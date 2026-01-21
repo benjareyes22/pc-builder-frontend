@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom'; // <--- 1. AGREGAMOS "Link" AQUÍ
 import { Container, Row, Col, Card, Button, Badge, Spinner, Form } from 'react-bootstrap';
 import { supabase } from '../supabase';
 import { useCart } from '../context/CartContext';
@@ -9,32 +9,50 @@ export default function Components() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
+  const [sortOrder, setSortOrder] = useState(""); 
+
+  // --- MAPA DE TÍTULOS ---
+  const titulos = {
+    'gpu': '🎮 Tarjetas de Video',
+    'cpu': '🧠 Procesadores',
+    'ram': '⚡ Memorias RAM',
+    'motherboard': '🔌 Placas Madre',
+    'case': '📦 Gabinetes',
+    'psu': '🔋 Fuentes de Poder',
+    'storage': '💾 Almacenamiento',
+    'all': '📚 Catálogo Completo'
+  };
 
   // --- ESTADOS DE LA IA ---
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { text: "👋 Hola. Soy tu consultor técnico. Pregúntame si un i3 hace cuello de botella o qué fuente necesitas.", sender: 'bot' }
+    { text: "👋 ¡Hola! Soy el vendedor inteligente. Pregúntame qué producto te conviene de nuestro stock actual.", sender: 'bot' }
   ]);
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => { fetchProducts(); }, [tipo]);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatOpen]);
+  
+  useEffect(() => { 
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); 
+  }, [messages, chatOpen, isTyping]);
 
   const fetchProducts = async () => {
     setLoading(true);
     try {
       let query = supabase.from('productos').select('*');
+      
       if (tipo && tipo !== 'all') {
         const categoriaMap = {
           'gpu': 'GPU', 'cpu': 'CPU', 'ram': 'RAM', 'motherboard': 'Motherboard',
-          'case': 'Case', 'psu': 'PSU', 'storage': 'Storage',
-          'Case': 'Case', 'PSU': 'PSU', 'Storage': 'Storage'
+          'case': 'Case', 'psu': 'PSU', 'storage': 'Storage'
         };
-        const categoriaReal = categoriaMap[tipo] || tipo;
+        const key = tipo.toLowerCase();
+        const categoriaReal = categoriaMap[key] || tipo;
         query = query.eq('categoria', categoriaReal);
       }
+      
       const { data } = await query;
       setProducts(data || []);
     } catch (e) {
@@ -43,59 +61,53 @@ export default function Components() {
     setLoading(false);
   };
 
-  // --- CEREBRO INTELIGENTE DE LA IA ---
-  const handleSendMessage = (e) => {
+  const handleSort = (e) => {
+    const orden = e.target.value;
+    setSortOrder(orden);
+
+    let productosOrdenados = [...products];
+
+    if (orden === 'menor') {
+      productosOrdenados.sort((a, b) => parseInt(a.precio) - parseInt(b.precio));
+    } else if (orden === 'mayor') {
+      productosOrdenados.sort((a, b) => parseInt(b.precio) - parseInt(a.precio));
+    }
+    
+    setProducts(productosOrdenados);
+  };
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
     
-    const originalText = inputText;
-    const t = inputText.toLowerCase().replace(/\s/g, ''); 
-    
-    setMessages(prev => [...prev, { text: originalText, sender: 'user' }]);
+    const userMsg = inputText;
+    setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
     setInputText("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      let respuesta = "";
-      
-      // 1. Detección de Gamas de GPU
-      let gamaGPU = 0;
-      if (/(\d{1,2})[89]0(ti|xt|super)?/.test(t)) gamaGPU = 3; // Serie 80/90
-      else if (/(\d{1,2})70(ti|xt|super)?/.test(t)) gamaGPU = 2; // Serie 70
-      else if (/(\d{1,2})[56]0(ti|xt|super)?/.test(t)) gamaGPU = 1; // Serie 50/60
+    try {
+      const inventarioTexto = products.length > 0 
+        ? products.map(p => `- ${p.nombre} (${p.categoria}): $${parseInt(p.precio).toLocaleString('es-CL')}`).join('\n')
+        : "No hay productos visibles.";
 
-      // 2. Detección de CPUs
-      const esCPUBasico = t.includes("i3") || t.includes("ryzen3");
-      const esCPUMedio = t.includes("i5") || t.includes("ryzen5");
-      const esCPUAlto = t.includes("i7") || t.includes("i9") || t.includes("ryzen7") || t.includes("ryzen9");
+      const response = await fetch("http://localhost:5000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          mensaje: userMsg,
+          contexto: `Categoría: '${titulos[tipo?.toLowerCase()] || 'General'}'.\n\nINVENTARIO EN PANTALLA:\n${inventarioTexto}`
+        }),
+      });
 
-      // 3. Lógica de Respuesta
-      if (t.includes("cuello") || t.includes("botella")) {
-          if (esCPUBasico && (t.includes("3060") || gamaGPU >= 1)) {
-              respuesta = "📉 Efectivamente, un i3 o Ryzen 3 te dará cuello de botella con una RTX 3060. El procesador es muy básico para esa potencia gráfica.";
-          } else if (esCPUMedio && gamaGPU === 3) {
-              respuesta = "⚠️ Tendrás un cuello de botella ligero. Para una serie 80 o 90, lo ideal es un i7 o Ryzen 7.";
-          } else if (esCPUAlto || (esCPUMedio && gamaGPU <= 2)) {
-              respuesta = "✅ ¡Excelente combinación! No tendrás problemas de cuello de botella con esos componentes.";
-          } else {
-              respuesta = "Para decirte si hay cuello de botella, dime qué CPU y GPU quieres combinar.";
-          }
-      } 
-      else if (t.includes("fuente") || t.includes("watts") || t.includes(" w")) {
-          const wattsMatch = originalText.match(/(\d{3})/);
-          const watts = wattsMatch ? parseInt(wattsMatch[0]) : 0;
-          if (watts > 0 && watts < 500 && gamaGPU >= 1) {
-              respuesta = `🛑 ${watts}W es muy poco para una serie '60' o superior. Te recomiendo mínimo 600W 80 Plus.`;
-          } else {
-              respuesta = "Siempre recomiendo fuentes certificadas. Para gama media, 600W está perfecto; para gama alta, busca 750W o más.";
-          }
-      } else {
-          respuesta = "Es una buena duda. Recuerda que lo más importante es el equilibrio entre tu procesador y tu tarjeta de video.";
-      }
+      if (!response.ok) throw new Error("Error del servidor");
+      const data = await response.json();
+      setMessages(prev => [...prev, { text: data.respuesta, sender: 'bot' }]);
 
-      setMessages(prev => [...prev, { text: respuesta, sender: 'bot' }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { text: "💀 Error de conexión.", sender: 'bot' }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const placeholderImages = {
@@ -110,9 +122,23 @@ export default function Components() {
 
   if (loading) return <Container className="text-center mt-5"><Spinner animation="border" variant="info" /></Container>;
 
+  const tituloPagina = titulos[tipo?.toLowerCase()] || 'Catálogo de Componentes';
+
   return (
     <Container className="mt-4 pb-5">
-      <h2 className="text-white mb-4 border-bottom pb-2">Catálogo de Componentes</h2>
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <h2 className="text-white fw-bold mb-3 mb-md-0">{tituloPagina}</h2>
+        
+        <div className="d-flex align-items-center gap-2">
+          <span className="text-white-50 small">Ordenar por:</span>
+          <Form.Select size="sm" style={{ width: '200px' }} onChange={handleSort} value={sortOrder}>
+            <option value="defecto">Relevancia</option>
+            <option value="menor">Precio: Menor a Mayor 📉</option>
+            <option value="mayor">Precio: Mayor a Menor 📈</option>
+          </Form.Select>
+        </div>
+      </div>
+      
       <Row>
         {products.length > 0 ? products.map(prod => (
           <Col key={prod.id} xs={12} sm={6} md={4} lg={3} className="mb-4">
@@ -126,16 +152,27 @@ export default function Components() {
               </div>
               <Card.Body className="d-flex flex-column text-dark">
                 <Badge bg="info" className="mb-2 w-50">{prod.categoria}</Badge>
-                <Card.Title className="fs-6 fw-bold">{prod.nombre}</Card.Title>
-                <h5 className="text-primary mt-auto">${parseInt(prod.precio).toLocaleString()}</h5>
-                <Button variant="dark" className="mt-2 w-100" onClick={() => addToCart(prod)}>🛒 Comprar</Button>
+                <Card.Title className="fs-6 fw-bold" style={{minHeight: '40px'}}>{prod.nombre}</Card.Title>
+                <h5 className="text-primary mt-auto">${parseInt(prod.precio).toLocaleString('es-CL')}</h5>
+                
+                {/* 👇 2. AQUI ESTÁ EL CAMBIO: BOTONES DOBLES 👇 */}
+                <div className="d-flex gap-2 mt-2 w-100">
+                    <Button variant="outline-primary" className="w-50 fw-bold" as={Link} to={`/producto/${prod.id}`}>
+                        👁️ Ver
+                    </Button>
+                    <Button variant="dark" className="w-50 fw-bold" onClick={() => addToCart(prod)}>
+                        🛒
+                    </Button>
+                </div>
+                {/* ☝️ ------------------------------------- ☝️ */}
+
               </Card.Body>
             </Card>
           </Col>
-        )) : <h4 className="text-white text-center mt-5">No hay productos disponibles</h4>}
+        )) : <h4 className="text-white text-center mt-5">No hay productos disponibles en esta categoría</h4>}
       </Row>
 
-      {/* CHATBOT FLOTANTE */}
+      {/* CHATBOT */}
       <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
         {!chatOpen && (
           <Button variant="info" className="rounded-circle shadow-lg p-3 fw-bold text-white" onClick={() => setChatOpen(true)}>💬 IA</Button>
@@ -143,7 +180,7 @@ export default function Components() {
         {chatOpen && (
           <Card className="shadow-lg border-0" style={{ width: '350px', height: '500px', display: 'flex', flexDirection: 'column' }}>
             <Card.Header className="bg-info text-white d-flex justify-content-between align-items-center">
-              <span className="fw-bold">Asistente Técnico</span>
+              <span className="fw-bold">Asistente de Ventas</span>
               <Button variant="link" className="text-white p-0" onClick={() => setChatOpen(false)}>✖</Button>
             </Card.Header>
             <Card.Body className="bg-light p-3 overflow-auto" style={{ flex: 1 }}>
@@ -154,13 +191,13 @@ export default function Components() {
                   </div>
                 </div>
               ))}
-              {isTyping && <div className="text-muted small ms-2">Escribiendo...</div>}
+              {isTyping && <div className="text-muted small ms-2">Consultando stock... 📦</div>}
               <div ref={chatEndRef} />
             </Card.Body>
             <Card.Footer className="p-2 bg-white">
               <Form onSubmit={handleSendMessage} className="d-flex gap-2">
-                <Form.Control size="sm" placeholder="Escribe tu duda..." value={inputText} onChange={(e) => setInputText(e.target.value)} />
-                <Button type="submit" variant="info" size="sm" className="text-white">➤</Button>
+                <Form.Control size="sm" placeholder="Consulta sobre estos productos..." value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={isTyping} />
+                <Button type="submit" variant="info" size="sm" className="text-white" disabled={isTyping}>➤</Button>
               </Form>
             </Card.Footer>
           </Card>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
-import { supabase } from '../supabase'; // Importamos tu conexión
-import { useNavigate, Link } from 'react-router-dom'; // Para redirigir al usuario
+import { supabase } from '../supabase';
+import { useNavigate, Link } from 'react-router-dom'; 
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -9,23 +9,20 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const navigate = useNavigate(); // El "GPS" para cambiar de página
+  const navigate = useNavigate(); 
 
   const handleLogin = async (e) => {
-    e.preventDefault(); // Evita que la página se recargue
+    e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Preguntamos a Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       });
 
       if (error) throw error;
-
-      // 2. Si todo sale bien, redirigir al Inicio
       console.log("Usuario logueado:", data);
       navigate('/'); 
       

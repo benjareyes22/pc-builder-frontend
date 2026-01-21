@@ -16,7 +16,6 @@ export default function Profile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       setEmail(user.email);
-      // Aquí buscamos si ya tiene un apodo guardado en su "mochila" (metadata)
       setUsername(user.user_metadata?.username || '');
     }
   };
@@ -27,15 +26,12 @@ export default function Profile() {
     setMessage('');
 
     try {
-      // Guardamos el nuevo nombre en la metadata del usuario
       const { error } = await supabase.auth.updateUser({
         data: { username: username }
       });
 
       if (error) throw error;
       setMessage('✅ ¡Nombre actualizado con éxito!');
-      
-      // Recargamos la página después de 1 segundo para ver el cambio arriba
       setTimeout(() => {
         window.location.reload();
       }, 1000);
