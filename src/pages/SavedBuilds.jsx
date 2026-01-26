@@ -1,211 +1,212 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Card, Row, Col, Button, Spinner, Alert, Badge } from 'react-bootstrap';
+import React, { useEffect, useState } from 'react';
+import { Container, Card, Button, Row, Col, Spinner, Badge } from 'react-bootstrap';
 import { supabase } from '../supabase';
-import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { Link } from 'react-router-dom';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable"; // <--- 1. CAMBIO AQUÍ: Importamos la función directa
+import { 
+  Trash2, ShoppingCart, FileDown, Eye, FolderOpen,
+  Cpu, CircuitBoard, Zap, Gamepad2, HardDrive, Battery, Box, Monitor
+} from 'lucide-react';
 
 export default function SavedBuilds() {
-  const [builds, setBuilds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const { addToCart } = useCart();
+  const [cotizaciones, setCotizaciones] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchBuilds(); }, []);
-
-  const fetchBuilds = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('cotizaciones')
-      .select(`
-        *,
-        cpu:cpu_id(*),
-        gpu:gpu_id(*),
-        mobo:mobo_id(*),
-        ram:ram_id(*),
-        storage:storage_id(*),
-        psu:psu_id(*),
-        case:case_id(*)
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) console.error("Error cargando cotizaciones:", error);
-    else setBuilds(data || []);
-    
-    setLoading(false);
+  const categoryIcons = {
+    'Procesador': <Cpu size={20} className="text-danger" />, 'CPU': <Cpu size={20} className="text-danger" />,
+    'Placa Madre': <CircuitBoard size={20} className="text-secondary" />, 'Motherboard': <CircuitBoard size={20} className="text-secondary" />,
+    'Memoria RAM': <Zap size={20} className="text-warning" />, 'RAM': <Zap size={20} className="text-warning" />,
+    'Tarjeta Video': <Gamepad2 size={20} className="text-success" />, 'GPU': <Gamepad2 size={20} className="text-success" />,
+    'Almacenamiento': <HardDrive size={20} className="text-primary" />, 'Storage': <HardDrive size={20} className="text-primary" />,
+    'Fuente Poder': <Battery size={20} className="text-info" />, 'PSU': <Battery size={20} className="text-info" />,
+    'Gabinete': <Box size={20} className="text-dark" />, 'Case': <Box size={20} className="text-dark" />
   };
 
-  const handleDelete = async (id) => {
-    if(!window.confirm("⚠ ¿Estás seguro de eliminar esta cotización?")) return;
-    const { error } = await supabase.from('cotizaciones').delete().eq('id', id);
-    if (!error) setBuilds(builds.filter(b => b.id !== id));
-  };
+  useEffect(() => {
+    if (user) fetchCotizaciones();
+  }, [user]);
 
-  const handleBuyAll = (build) => {
-    const components = [build.cpu, build.mobo, build.ram, build.gpu, build.storage, build.psu, build.case];
-    let count = 0;
-    components.forEach(comp => {
-      if (comp) { addToCart(comp); count++; }
-    });
-    if(count > 0) alert(`✅ ¡${count} productos agregados al carrito!`);
-  };
-
-  // --- 📄 FUNCIÓN GENERAR PDF ---
-  const downloadPDF = (build) => {
+  const fetchCotizaciones = async () => {
     try {
-      const doc = new jsPDF();
-      const fecha = new Date(build.created_at).toLocaleDateString();
+      setLoading(true);
+      
+      const { data: cotizacionesData, error } = await supabase
+        .from('cotizaciones')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-      // Encabezado
-      doc.setFillColor(41, 128, 185);
-      doc.rect(0, 0, 210, 20, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.text("PC-BUILDER AI - Cotización Oficial", 14, 13);
+      if (error) throw error;
 
-      // Info
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(12);
-      doc.text(`Nombre: ${build.nombre || 'Sin Nombre'}`, 14, 30);
-      doc.text(`Fecha: ${fecha}`, 14, 38);
-      doc.text(`ID Referencia: #${build.id}`, 150, 38);
+      if (!cotizacionesData || cotizacionesData.length === 0) {
+        setCotizaciones([]);
+        return;
+      }
 
-      // Tabla
-      const components = [
-        { tipo: 'Procesador', item: build.cpu },
-        { tipo: 'Tarjeta de Video', item: build.gpu },
-        { tipo: 'Placa Madre', item: build.mobo },
-        { tipo: 'Memoria RAM', item: build.ram },
-        { tipo: 'Almacenamiento', item: build.storage },
-        { tipo: 'Fuente de Poder', item: build.psu },
-        { tipo: 'Gabinete', item: build.case },
-      ];
-
-      const tableData = components
-        .filter(c => c.item)
-        .map(c => [
-            c.tipo, 
-            c.item.nombre, 
-            `$${parseInt(c.item.precio).toLocaleString('es-CL')}`
-        ]);
-
-      autoTable(doc, {
-        startY: 45,
-        head: [['Componente', 'Modelo', 'Precio']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [44, 62, 80] },
+      const productIds = new Set();
+      cotizacionesData.forEach(c => {
+        if (c.cpu_id) productIds.add(c.cpu_id);
+        if (c.gpu_id) productIds.add(c.gpu_id);
+        if (c.mobo_id) productIds.add(c.mobo_id);
+        if (c.ram_id) productIds.add(c.ram_id);
+        if (c.storage_id) productIds.add(c.storage_id);
+        if (c.psu_id) productIds.add(c.psu_id);
+        if (c.case_id) productIds.add(c.case_id);
       });
 
-      // Total
-      const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 150) + 10;
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(39, 174, 96);
-      doc.text(`TOTAL ESTIMADO: $${(build.total || 0).toLocaleString('es-CL')}`, 14, finalY);
+      const { data: productosReales } = await supabase
+        .from('productos')
+        .select('*')
+        .in('id', Array.from(productIds));
 
-      // Pie de página
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(150);
-      doc.text("Generado automáticamente por Inteligencia Artificial.", 14, 280);
+      const productosMap = {};
+      productosReales?.forEach(p => { productosMap[p.id] = p; });
 
-      doc.save(`Cotizacion_${build.nombre ? build.nombre.replace(/\s+/g, '_') : 'PC'}.pdf`);
-      
+      const cotizacionesFormateadas = cotizacionesData.map(c => {
+        const misProductos = [];
+        if (c.cpu_id && productosMap[c.cpu_id]) misProductos.push(productosMap[c.cpu_id]);
+        if (c.mobo_id && productosMap[c.mobo_id]) misProductos.push(productosMap[c.mobo_id]);
+        if (c.ram_id && productosMap[c.ram_id]) misProductos.push(productosMap[c.ram_id]);
+        if (c.gpu_id && productosMap[c.gpu_id]) misProductos.push(productosMap[c.gpu_id]);
+        if (c.storage_id && productosMap[c.storage_id]) misProductos.push(productosMap[c.storage_id]);
+        if (c.psu_id && productosMap[c.psu_id]) misProductos.push(productosMap[c.psu_id]);
+        if (c.case_id && productosMap[c.case_id]) misProductos.push(productosMap[c.case_id]);
+
+        return {
+          id: c.id,
+          nombre_cotizacion: c.nombre,
+          fecha_creacion: c.created_at,
+          total: c.total,
+          productos: misProductos
+        };
+      });
+
+      setCotizaciones(cotizacionesFormateadas);
+
     } catch (error) {
-      console.error("❌ Error PDF:", error);
-      alert("Hubo un error al generar el PDF. Revisa la consola.");
+      console.error("Error cargando cotizaciones:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- COMPONENTE DE FILA (CON BOTÓN RESTAURADO) ---
-  const ProductRow = ({ label, product, icon }) => {
-    if (!product) return null;
-    return (
-      <div className="d-flex align-items-center justify-content-between p-2 mb-2 bg-light border rounded">
-        <div className="d-flex align-items-center gap-3">
-          <div className="bg-white border text-dark rounded p-2 d-flex align-items-center justify-content-center" style={{width: '40px', height: '40px', fontSize: '1.2rem'}}>
-            {icon}
-          </div>
-          <div>
-            <small className="text-secondary text-uppercase fw-bold" style={{ fontSize: '0.6rem' }}>{label}</small>
-            <div className="fw-bold text-dark small">{product.nombre}</div>
-            <div className="text-muted small">${parseInt(product.precio).toLocaleString('es-CL')}</div>
-          </div>
-        </div>
-        
-        {/* 👇 AQUÍ ESTÁ EL BOTÓN QUE FALTABA 👇 */}
-        <Button as={Link} to={`/producto/${product.id}`} variant="outline-primary" size="sm" style={{ fontSize: '0.7rem'}}>
-            Ver
-        </Button>
-        {/* ☝️ ------------------------------- ☝️ */}
-      </div>
-    );
+  const deleteCotizacion = async (id) => {
+    if (!window.confirm("¿Borrar cotización?")) return;
+    const { error } = await supabase.from('cotizaciones').delete().eq('id', id);
+    if (!error) setCotizaciones(prev => prev.filter(c => c.id !== id));
   };
 
-  if (loading) return <Container className="mt-5 text-center"><Spinner animation="border" variant="warning" /></Container>;
+  const addAllToCart = (productos) => {
+    productos.forEach(prod => addToCart(prod));
+    alert("¡Componentes agregados al carrito! 🛒");
+  };
+
+  // --- FUNCIÓN PDF CORREGIDA ---
+  const generatePDF = (cotizacion) => {
+    try {
+      const doc = new jsPDF();
+      
+      doc.setFontSize(20);
+      doc.setTextColor(28, 47, 135); 
+      doc.text("PC-BUILDER AI - Cotización", 14, 22);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Nombre: ${cotizacion.nombre_cotizacion}`, 14, 32);
+      doc.text(`Fecha: ${new Date(cotizacion.fecha_creacion).toLocaleDateString()}`, 14, 38);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(229, 101, 3); 
+      doc.text(`Total: $${parseInt(cotizacion.total).toLocaleString('es-CL')}`, 14, 48);
+
+      const tableRows = cotizacion.productos.map(prod => [
+        prod.categoria,
+        prod.nombre,
+        `$${parseInt(prod.precio).toLocaleString('es-CL')}`
+      ]);
+
+      // 2. CAMBIO AQUÍ: Usamos autoTable(doc, ...) en vez de doc.autoTable(...)
+      autoTable(doc, {
+        head: [["Categoría", "Producto", "Precio"]],
+        body: tableRows,
+        startY: 55,
+        theme: 'grid',
+        headStyles: { fillColor: [28, 47, 135] }
+      });
+
+      doc.save(`cotizacion_${cotizacion.nombre_cotizacion.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("Error PDF Detallado:", error);
+      alert("Error al generar PDF: " + error.message);
+    }
+  };
+
+  if (loading) return <Container className="text-center mt-5"><Spinner animation="border" variant="light" /></Container>;
 
   return (
-    <Container className="mt-4 mb-5">
-      <h2 className="mb-4 text-center fw-bold text-dark">
-        📂 Mis Cotizaciones <Badge bg="warning" text="dark" pill>{builds.length}</Badge>
-      </h2>
-      
-      {builds.length === 0 ? (
-        <Alert variant="info" className="text-center py-5 shadow-sm bg-white border-0">
-          <h4>Sin cotizaciones guardadas 😢</h4>
-          <Button as={Link} to="/cotizador" variant="warning" className="fw-bold mt-2">🤖 Ir al Armador</Button>
-        </Alert>
-      ) : (
-        <div className="d-flex flex-column gap-4">
-          {builds.map((b) => (
-            <Card key={b.id} className="border-0 shadow-sm">
-              <Card.Header className="bg-dark text-white d-flex justify-content-between align-items-center py-2">
-                <div>
-                    <h6 className="mb-0 fw-bold text-warning">{b.nombre || "PC Sin Nombre"}</h6>
-                    <small className="text-white-50">{new Date(b.created_at).toLocaleDateString()}</small>
-                </div>
-                <Button variant="danger" size="sm" onClick={() => handleDelete(b.id)}>🗑️</Button>
-              </Card.Header>
-              <Card.Body className="bg-white">
-                <Row>
-                  <Col lg={8}>
-                    <Row>
-                        <Col md={6}>
-                            <ProductRow label="Procesador" product={b.cpu} icon="🧠" />
-                            <ProductRow label="Placa Madre" product={b.mobo} icon="🔌" />
-                            <ProductRow label="Memoria RAM" product={b.ram} icon="⚡" />
-                            <ProductRow label="Tarjeta Video" product={b.gpu} icon="🎮" />
-                        </Col>
-                        <Col md={6}>
-                            <ProductRow label="Almacenamiento" product={b.storage} icon="💾" />
-                            <ProductRow label="Fuente Poder" product={b.psu} icon="🔋" />
-                            <ProductRow label="Gabinete" product={b.case} icon="📦" />
-                        </Col>
-                    </Row>
-                  </Col>
-                  <Col lg={4} className="d-flex flex-column justify-content-center align-items-center border-start ps-lg-4 mt-3 mt-lg-0">
-                    <div className="text-center mb-3 p-3 bg-light rounded w-100 border">
-                      <div className="text-muted text-uppercase small">Total</div>
-                      <div className="display-6 fw-bold text-success">${(b.total || 0).toLocaleString('es-CL')}</div>
-                    </div>
-                    
-                    <Button variant="warning" size="lg" className="w-100 mb-2 fw-bold shadow-sm" onClick={() => handleBuyAll(b)}>
-                        🛒 Agregar Todo
-                    </Button>
-                    
-                    <Button variant="outline-danger" className="w-100 fw-bold" onClick={() => downloadPDF(b)}>
-                        📄 Descargar PDF
-                    </Button>
-                  </Col>
-                </Row>
-              </Card.Body>
-            </Card>
-          ))}
+    <Container className="mt-4 pb-5">
+      <div className="text-center mb-4">
+        <h2 className="section-title d-inline-flex align-items-center gap-2" style={{color: '#1c2f87', fontWeight: 'bold'}}>
+            <FolderOpen size={28} /> Mis Cotizaciones
+            <Badge bg="light" text="dark" pill className="fs-6 ms-2">{cotizaciones.length}</Badge>
+        </h2>
+      </div>
+
+      {cotizaciones.length === 0 ? (
+        <div className="text-center mt-5 p-5 bg-light rounded shadow text-dark">
+            <Monitor size={48} className="mb-3 text-muted"/>
+            <h4>No tienes cotizaciones guardadas.</h4>
+            <Button as={Link} to="/cotizador" variant="primary" className="mt-3">Ir a Armar PC</Button>
         </div>
+      ) : (
+        cotizaciones.map(cot => (
+          <Card key={cot.id} className="mb-4 shadow-lg border-0 overflow-hidden">
+            <Card.Header className="d-flex justify-content-between align-items-center py-3" style={{backgroundColor: '#e56503', color: '#1c2f87'}}>
+              <div>
+                <h5 className="mb-0 fw-bold text-white">{cot.nombre_cotizacion}</h5>
+                <small className="text-white-50">{new Date(cot.fecha_creacion).toLocaleDateString()}</small>
+              </div>
+              <Button variant="danger" size="sm" onClick={() => deleteCotizacion(cot.id)}><Trash2 size={18} /></Button>
+            </Card.Header>
+            <Card.Body className="bg-light">
+              <Row>
+                <Col md={8}>
+                  <Row>
+                    {cot.productos.map((prod, index) => (
+                      <Col md={6} key={index} className="mb-3">
+                        <Card className="h-100 shadow-sm border-0">
+                          <Card.Body className="d-flex align-items-center p-2">
+                            <div className="me-3 text-muted">{categoryIcons[prod.categoria] || <Box size={20} />}</div>
+                            <div className="flex-grow-1">
+                              <small className="fw-bold text-muted" style={{fontSize: '0.7rem'}}>{prod.categoria}</small>
+                              <h6 className="mb-0 text-truncate" style={{maxWidth: '200px'}} title={prod.nombre}>{prod.nombre}</h6>
+                              <span className="text-primary fw-bold">${parseInt(prod.precio).toLocaleString('es-CL')}</span>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                </Col>
+                <Col md={4} className="d-flex flex-column justify-content-center align-items-center bg-white p-3 rounded border">
+                    <h5 className="text-muted mb-1">TOTAL</h5>
+                    <h2 className="text-success fw-bold mb-3">${parseInt(cot.total).toLocaleString('es-CL')}</h2>
+                    <Button variant="warning" className="w-100 mb-2 fw-bold" onClick={() => addAllToCart(cot.productos)}>
+                        <ShoppingCart size={18} className="me-2"/> Agregar al Carrito
+                    </Button>
+                    <Button variant="outline-danger" className="w-100 fw-bold" onClick={() => generatePDF(cot)}>
+                        <FileDown size={18} className="me-2"/> PDF
+                    </Button>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        ))
       )}
     </Container>
   );

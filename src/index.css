@@ -1,29 +1,39 @@
-/* TUS ESTILOS ORIGINALES ADAPTADOS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === TUS ESTILOS CLÁSICOS (RECUPERADOS) === */
+
 body {
-  background-color: rgb(83, 83, 184);
-  color: white; /* Agregué esto para que el texto se lea mejor */
+  background-color: rgb(83, 83, 184); /* El morado clásico */
+  color: white;
+  font-family: sans-serif; /* Agregué esto para que se vea limpio */
 }
 
-.carousel img {
-  max-width: 100%;
-  height: 400px; /* Ajusté la altura para que se vea parejo */
-  object-fit: cover;
-}
-
+/* Forzamos que las tarjetas usen tu color verde */
 .card {
-  background-color: rgb(71, 198, 130);
+  background-color: rgb(71, 198, 130) !important;
   border: none;
   transition: transform 0.3s;
+  color: white !important; /* Texto blanco en las tarjetas */
 }
 
 .card:hover {
-  transform: scale(1.03); /* Efecto zoom al pasar el mouse */
+  transform: scale(1.03);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3);
 }
 
-.card-title-container {
-  margin-top: 10px;
+/* Ajuste para que las imágenes calcen bien */
+.card-img-top {
+  height: 150px;
+  object-fit: contain;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.2); /* Fondo sutil para la imagen */
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
 }
 
+/* Títulos de sección naranjas */
 .section-title {
   background-color: rgba(229, 101, 3, 0.878);
   color: rgb(28, 47, 135);
@@ -31,54 +41,34 @@ body {
   border-radius: 10px;
   margin-bottom: 30px;
   display: inline-block;
+  font-weight: bold;
 }
 
-/* ESTILOS DEL CHAT FLOTANTE (NUEVO) */
-.chat-widget {
+/* === ESTILOS DEL CHAT (USANDO TUS COLORES) === */
+.chat-widget-container {
   position: fixed;
   bottom: 20px;
   right: 20px;
+  z-index: 1000;
+}
+
+.chat-window {
   width: 350px;
   background: white;
   border-radius: 15px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-  z-index: 1000;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border: 2px solid #1c2f87;
 }
 
 .chat-header {
-  background: #1c2f87;
+  background: #1c2f87; /* Tu azul oscuro */
   color: white;
   padding: 15px;
-  cursor: pointer;
   font-weight: bold;
-}
-
-.chat-body {
-  height: 300px;
-  overflow-y: auto;
-  padding: 10px;
-  background: #f8f9fa;
-  color: black;
-}
-
-.chat-input {
   display: flex;
-  border-top: 1px solid #ccc;
-}
-
-.chat-input input {
-  flex: 1;
-  border: none;
-  padding: 10px;
-  outline: none;
-}
-
-.chat-input button {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 0 15px;
+  justify-content: space-between;
+  align-items: center;
 }

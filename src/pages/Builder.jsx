@@ -1,293 +1,286 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Form, Card, Button, Spinner, InputGroup } from 'react-bootstrap';
 import { supabase } from '../supabase';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { GoogleGenerativeAI } from "@google/generative-ai"; 
+import { Shield, Zap, Bot, Save, ShoppingCart, Send, Loader2 } from 'lucide-react';
+
+// API Key protegida
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 export default function Builder() {
   const { addToCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Estados de Inventario
-  const [fullInventory, setFullInventory] = useState([]);
-  const [cpus, setCpus] = useState([]);
-  const [gpus, setGpus] = useState([]);
-  const [mobos, setMobos] = useState([]);
-  const [rams, setRams] = useState([]);
-  const [storage, setStorage] = useState([]);
-  const [psus, setPsus] = useState([]);
-  const [cases, setCases] = useState([]);
-
-  // Selección del Usuario (Build)
-  const [build, setBuild] = useState({
-    cpu: null,
-    gpu: null,
-    mobo: null,
-    ram: null,
-    storage: null,
-    psu: null,
-    case: null
-  });
-
-  // Chat y Precios
-  const [messages, setMessages] = useState([
-    { text: "👋 ¡Hola! Dime qué necesitas (ej: 'PC para Excel barato' o 'Gamer por 800 lucas') y yo seleccionaré las piezas por ti.", sender: 'bot' }
+  const [categoriasData, setCategoriasData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [seleccionados, setSeleccionados] = useState({});
+  const [total, setTotal] = useState(0);
+  const [nombreCotizacion, setNombreCotizacion] = useState("");
+  
+  // Chat IA
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState([
+      { role: 'assistant', content: "¡Hola! Soy tu Asesor Experto en Hardware. Cuéntame qué uso le darás al PC (ej: Gaming, Edición, Oficina) y tu presupuesto aproximado. Yo me encargo del resto." }
   ]);
-  const [inputChat, setInputChat] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef(null);
-  const [totalPrice, setTotalPrice] = useState(0);
 
-  // Validación
-  const [compatibilityMsg, setCompatibilityMsg] = useState(null);
-  const [validating, setValidating] = useState(false);
+  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { calcularTotal(); }, [seleccionados]);
+  useEffect(() => { scrollToBottom(); }, [chatMessages]);
 
-  // Carga inicial
-  useEffect(() => { fetchComponents(); }, []);
-
-  // Scroll automático del chat
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
-
-  // Calculadora de Precio
-  useEffect(() => {
-    const total = Object.values(build).reduce((acc, item) => acc + (item ? item.precio : 0), 0);
-    setTotalPrice(total);
-  }, [build]);
-
-  // --- 🛡️ AUTO-VALIDACIÓN DE COMPATIBILIDAD (Lógica de Alertas) ---
-  useEffect(() => {
-    verificarCompatibilidad();
-  }, [build.cpu, build.mobo, build.ram]);
-
-  const verificarCompatibilidad = async () => {
-    setValidating(true);
-    
-    // Solo validamos si hay CPU y Placa seleccionadas
-    if (build.cpu && build.mobo) {
-      const cpuName = (build.cpu.nombre || "").toLowerCase();
-      const moboName = (build.mobo.nombre || "").toLowerCase();
-      const ramName = build.ram ? (build.ram.nombre || "").toLowerCase() : "";
-
-      // 1. NIVEL CRÍTICO (ROJO): Incompatibilidad de Socket (Intel en placa AMD)
-      if (cpuName.includes("intel") && moboName.includes("b550")) {
-        setCompatibilityMsg({ 
-          type: 'danger', 
-          text: "PELIGRO CRÍTICO: 🛑 Estás intentando montar un procesador INTEL en una placa madre para AMD (B550). ¡Los pines no encajan y podrías dañar el equipo!" 
-        });
-      } 
-      // 2. NIVEL ADVERTENCIA (AMARILLO): Poca RAM (8GB)
-      else if (ramName.includes("8 gb") || ramName.includes("8gb")) {
-        setCompatibilityMsg({ 
-          type: 'warning', 
-          text: "⚠️ ADVERTENCIA DE RENDIMIENTO: Seleccionaste solo 8GB de RAM. El equipo funcionará, pero para juegos modernos o multitarea se recomiendan 16GB." 
-        });
+  const fetchData = async () => {
+      setLoading(true);
+      const cats = ['CPU', 'Motherboard', 'RAM', 'GPU', 'Storage', 'PSU', 'Case'];
+      const dataMap = {};
+      for (const cat of cats) {
+        const { data } = await supabase.from('productos').select('*').eq('categoria', cat);
+        dataMap[cat] = data || [];
       }
-      // 3. TODO OK (VERDE)
-      else {
-        setCompatibilityMsg({ 
-          type: 'success', 
-          text: "✅ Compatibilidad verificada. Los sockets coinciden y la configuración es segura." 
-        });
-      }
-    } else {
-      // Si falta CPU o Placa, limpiamos el mensaje
-      setCompatibilityMsg(null);
-    }
-    setValidating(false);
+      setCategoriasData(dataMap);
+      setLoading(false);
   };
 
-  const fetchComponents = async () => {
-    try {
-      const { data: allProducts } = await supabase.from('productos').select('*');
-      if (allProducts) {
-        setFullInventory(allProducts);
-        setCpus(allProducts.filter(p => p.categoria === 'CPU'));
-        setGpus(allProducts.filter(p => p.categoria === 'GPU'));
-        setMobos(allProducts.filter(p => p.categoria === 'Motherboard'));
-        setRams(allProducts.filter(p => p.categoria === 'RAM'));
-        setStorage(allProducts.filter(p => p.categoria === 'Storage'));
-        setPsus(allProducts.filter(p => p.categoria === 'PSU'));
-        setCases(allProducts.filter(p => p.categoria === 'Case'));
-      }
-    } catch (error) {
-      console.error("Error productos:", error);
-    }
+  const handleSelect = (categoria, productoId) => {
+      const producto = categoriasData[categoria].find(p => p.id === parseInt(productoId));
+      setSeleccionados(prev => ({ ...prev, [categoria]: producto }));
   };
 
-  const handleSelect = (category, productId) => {
-    const product = fullInventory.find(p => p.id === parseInt(productId)) || null;
-    setBuild(prev => ({ ...prev, [category]: product }));
+  const calcularTotal = () => {
+      let sum = 0;
+      Object.values(seleccionados).forEach(prod => { if (prod) sum += parseInt(prod.precio); });
+      setTotal(sum);
   };
 
-  // --- 🧠 CEREBRO IA CON AUTO-COMPLETADO ---
-  const handleChatSubmit = async (e) => {
-    e.preventDefault();
-    if (!inputChat.trim()) return;
-
-    const userMsg = inputChat;
-    setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
-    setInputChat("");
-    setIsTyping(true);
-
-    try {
-      const response = await fetch("http://localhost:5000/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensaje: userMsg }),
-      });
-
-      const data = await response.json();
-      
-      if (data.respuesta) {
-        setMessages(prev => [...prev, { text: data.respuesta, sender: 'bot' }]);
-      }
-
-      if (data.seleccion) {
-        console.log("🪄 La IA sugiere:", data.seleccion);
-        setBuild(prev => {
-          const nuevoArmado = { ...prev };
-          const findByName = (name) => {
-            if (!name || name === "null") return null;
-            return fullInventory.find(p => 
-              p.nombre.toLowerCase().trim() === name.toLowerCase().trim()
-            ) || null;
-          };
-
-          if (data.seleccion.cpu) nuevoArmado.cpu = findByName(data.seleccion.cpu);
-          if (data.seleccion.motherboard) nuevoArmado.mobo = findByName(data.seleccion.motherboard);
-          if (data.seleccion.ram) nuevoArmado.ram = findByName(data.seleccion.ram);
-          if (data.seleccion.gpu) nuevoArmado.gpu = findByName(data.seleccion.gpu);
-          if (data.seleccion.storage) nuevoArmado.storage = findByName(data.seleccion.storage);
-          if (data.seleccion.psu) nuevoArmado.psu = findByName(data.seleccion.psu);
-          if (data.seleccion.case) nuevoArmado.case = findByName(data.seleccion.case);
-
-          return nuevoArmado;
-        });
-      }
-
-    } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, { text: "💀 Error conectando con el cerebro IA.", sender: 'bot' }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  const guardarCotizacion = async () => {
-    if (totalPrice === 0) return alert("Armado vacío.");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      if(window.confirm("Debes iniciar sesión. ¿Ir al login?")) navigate('/login');
-      return;
-    }
-    const nombre = prompt("Nombre para tu PC:", "Mi PC IA");
+  const handleSave = async () => {
+    if (!user) return alert("Inicia sesión para guardar.");
+    const nombre = prompt("Nombre de la cotización:", nombreCotizacion || "Mi PC");
     if (!nombre) return;
 
-    const { error } = await supabase.from('cotizaciones').insert([{
-      user_id: user.id,
-      nombre: nombre,
-      cpu_id: build.cpu?.id,
-      gpu_id: build.gpu?.id,
-      mobo_id: build.mobo?.id,
-      ram_id: build.ram?.id,
-      storage_id: build.storage?.id,
-      psu_id: build.psu?.id,
-      case_id: build.case?.id,
-      total: totalPrice
-    }]);
+    const productosGuardar = Object.values(seleccionados).filter(p => p !== undefined);
+    if (productosGuardar.length === 0) return alert("Selecciona componentes primero.");
 
-    if (!error) alert("✅ Guardado exitoso.");
-    else alert("Error al guardar.");
+    const cotizacionObj = {
+        user_id: user.id,
+        nombre: nombre,
+        total: total,
+        created_at: new Date(),
+        cpu_id: seleccionados['CPU']?.id || null,
+        mobo_id: seleccionados['Motherboard']?.id || null,
+        ram_id: seleccionados['RAM']?.id || null,
+        gpu_id: seleccionados['GPU']?.id || null,
+        storage_id: seleccionados['Storage']?.id || null,
+        psu_id: seleccionados['PSU']?.id || null,
+        case_id: seleccionados['Case']?.id || null
+    };
+
+    const { error } = await supabase.from('cotizaciones').insert([cotizacionObj]);
+    if (error) { console.error(error); alert("Error al guardar."); } 
+    else { alert("¡Cotización guardada!"); setSeleccionados({}); }
   };
 
-  const addAllToCart = () => {
-    Object.values(build).forEach(item => { if (item) addToCart(item); });
-    alert("¡Todo agregado al carrito!");
+  const handleAddToCart = () => {
+    const productosAgregar = Object.values(seleccionados).filter(p => p !== undefined);
+    if (productosAgregar.length === 0) return alert("Selecciona componentes.");
+    productosAgregar.forEach(prod => addToCart(prod));
+    alert("Agregado al carrito.");
   };
+
+  const handleChatSubmit = async (e) => {
+      e.preventDefault();
+      if (!chatInput.trim()) return;
+
+      const userMessage = { role: 'user', content: chatInput };
+      setChatMessages(prev => [...prev, userMessage]);
+      setChatInput("");
+      setIsChatLoading(true);
+
+      try {
+          // Contexto para la IA
+          let inventarioContext = "--- INVENTARIO DISPONIBLE (ID | NOMBRE | PRECIO) ---\n";
+          for (const [cat, prods] of Object.entries(categoriasData)) {
+              inventarioContext += `\nCATEGORÍA: ${cat}\n`;
+              prods.forEach(p => {
+                  inventarioContext += `- ID:${p.id} | ${p.nombre} | $${parseInt(p.precio).toLocaleString('es-CL')}\n`;
+              });
+          }
+          
+          inventarioContext += `
+          \n--- ROL ---
+          Actúa como un Asesor Técnico Senior de PC-Builder AI. Tu tono debe ser profesional, útil y persuasivo.
+          
+          --- OBJETIVO ---
+          Recomendar una configuración de PC COMPLETA basada estrictamente en el inventario de arriba y la solicitud del usuario.
+          
+          --- REGLAS IMPORTANTES ---
+          1. SOLO recomienda productos que estén en la lista de "INVENTARIO DISPONIBLE".
+          2. Si el presupuesto del usuario es bajo, prioriza rendimiento sobre estética.
+          3. Si el usuario pide algo imposible con el stock actual, explícalo amablemente.
+          4. Justifica brevemente la elección de CPU y GPU.
+          5. **IMPORTANTE:** NUNCA menciones "JSON", "IDs", "código" o "bloques ocultos" en tu respuesta de texto. Si te falta información para armar el PC, solo pídela amablemente.
+          
+          --- FORMATO DE RESPUESTA ---
+          - Parte 1 (Texto Visible): Saluda y explica la configuración (o pide más datos).
+          - Parte 2 (Código Oculto): SOLO SI RECOMIENDAS PIEZAS, agrega al final un bloque JSON estricto.
+          
+          El bloque JSON debe verse EXACTAMENTE así (no lo expliques, solo ponlo):
+          JSON_START
+          {
+            "CPU": 12,
+            "Motherboard": 45,
+            "RAM": 32,
+            "GPU": 55,
+            "Storage": 22,
+            "PSU": 10,
+            "Case": 5
+          }
+          JSON_END
+          
+          --- MENSAJE DEL USUARIO ---
+          "${chatInput}"`;
+
+          // USANDO EL MODELO QUE TE FUNCIONA
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          const result = await model.generateContent(inventarioContext);
+          const responseText = result.response.text();
+
+          let finalText = responseText;
+          const jsonMatch = responseText.match(/JSON_START([\s\S]*?)JSON_END/);
+          
+          if (jsonMatch && jsonMatch[1]) {
+              finalText = responseText.replace(/JSON_START[\s\S]*?JSON_END/, "").trim();
+              try {
+                  const selectionData = JSON.parse(jsonMatch[1]);
+                  const nuevaSeleccion = { ...seleccionados };
+                  let itemsEncontrados = 0;
+                  
+                  for (const [cat, id] of Object.entries(selectionData)) {
+                      const producto = categoriasData[cat]?.find(p => p.id === parseInt(id));
+                      if (producto) {
+                          nuevaSeleccion[cat] = producto;
+                          itemsEncontrados++;
+                      }
+                  }
+                  
+                  if (itemsEncontrados > 0) {
+                      setSeleccionados(nuevaSeleccion);
+                      finalText += "\n\n✅ ¡He actualizado la tabla con las piezas recomendadas!";
+                  }
+              } catch (err) { console.error("Error JSON:", err); }
+          }
+
+          setChatMessages(prev => [...prev, { role: 'assistant', content: finalText }]);
+
+      } catch (error) {
+          console.error("Error Gemini:", error);
+          setChatMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un problema de conexión. Intenta de nuevo." }]);
+      } finally {
+          setIsChatLoading(false);
+      }
+  };
+
+  const scrollToBottom = () => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
+
+  if (loading) return <Container className="text-center mt-5"><Spinner animation="border" variant="info" /></Container>;
+
+  const categoriasMap = { 'CPU': 'Procesador', 'Motherboard': 'Placa Madre', 'RAM': 'RAM', 'GPU': 'Video', 'Storage': 'Disco', 'PSU': 'Fuente', 'Case': 'Gabinete' };
 
   return (
     <Container className="mt-4 pb-5">
-      <h2 className="text-white text-center mb-4">🤖 Armador de PC Inteligente</h2>
-      <Row>
-        <Col md={7}>
-          <Card className="p-4 shadow bg-white">
-            <h5 className="mb-3 text-dark border-bottom pb-2">Componentes Principales</h5>
-            {[
-              {label: "Procesador (CPU)", state: cpus, type: 'cpu', val: build.cpu},
-              {label: "Placa Madre", state: mobos, type: 'mobo', val: build.mobo},
-              {label: "Memoria RAM", state: rams, type: 'ram', val: build.ram},
-              {label: "Tarjeta de Video (GPU)", state: gpus, type: 'gpu', val: build.gpu},
-              {label: "Almacenamiento", state: storage, type: 'storage', val: build.storage},
-              {label: "Fuente de Poder", state: psus, type: 'psu', val: build.psu},
-              {label: "Gabinete", state: cases, type: 'case', val: build.case}
-            ].map((comp, idx) => (
-              <Form.Group className="mb-3" key={idx}>
-                <Form.Label className="text-dark fw-bold">{comp.label}</Form.Label>
-                <Form.Select 
-                  value={comp.val ? comp.val.id : ""} 
-                  onChange={(e) => handleSelect(comp.type, e.target.value)}
-                >
-                  <option value="">Seleccionar...</option>
-                  {comp.state.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre} - ${parseInt(p.precio).toLocaleString('es-CL')}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            ))}
+        <h2 className="section-title text-center mb-4 d-flex align-items-center justify-content-center gap-2" style={{color: '#1c2f87'}}>
+            <Shield size={28} /> Armador de PC Inteligente
+        </h2>
 
-            {/* ALERTAS INTELIGENTES */}
-            {validating && <div className="text-center text-muted mb-2"><Spinner animation="border" size="sm"/> Verificando...</div>}
-            
-            {compatibilityMsg && !validating && (
-              <Alert variant={compatibilityMsg.type} className="fw-bold text-center">
-                {compatibilityMsg.text}
-              </Alert>
-            )}
+        <Row className="h-100 align-items-stretch"> 
+            <Col md={8} className="mb-4 mb-md-0">
+                <Card className="shadow-lg border-0 h-100">
+                    <Card.Header className="text-white fw-bold py-3" style={{backgroundColor: '#e56503'}}>Componentes</Card.Header>
+                    <Card.Body className="p-4 bg-light">
+                        <Form>
+                            {Object.entries(categoriasMap).map(([key, label]) => (
+                                <Form.Group key={key} className="mb-3">
+                                    <Form.Label className="fw-bold text-dark">{label}</Form.Label>
+                                    <Form.Select 
+                                        value={seleccionados[key]?.id || ""} 
+                                        onChange={(e) => handleSelect(key, e.target.value)}
+                                        className="border-secondary shadow-sm"
+                                    >
+                                        <option value="">Seleccionar...</option>
+                                        {categoriasData[key]?.map(prod => (
+                                            <option key={prod.id} value={prod.id}>
+                                                {prod.nombre} - ${parseInt(prod.precio).toLocaleString('es-CL')}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            ))}
+                        </Form>
+                    </Card.Body>
+                    <Card.Footer className="bg-white p-3 d-flex flex-column gap-3 mt-auto">
+                        <div className="bg-dark text-white p-3 rounded text-center fw-bold fs-4 shadow-sm">
+                            Total: ${total.toLocaleString('es-CL')}
+                        </div>
+                        <div className="d-flex gap-3">
+                            <Button variant="secondary" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleSave}>
+                                <Save size={20} /> Guardar
+                            </Button>
+                            <Button variant="success" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleAddToCart}>
+                                <ShoppingCart size={20} /> Carrito
+                            </Button>
+                        </div>
+                    </Card.Footer>
+                </Card>
+            </Col>
 
-            <Alert variant="info" className="mt-3 text-center">
-              <h4>Total Estimado: ${totalPrice.toLocaleString('es-CL')}</h4>
-            </Alert>
-            <div className="d-flex gap-2">
-              <Button variant="outline-primary" className="w-50 fw-bold" onClick={guardarCotizacion}>💾 Guardar</Button>
-              <Button variant="success" className="w-50 fw-bold" onClick={addAllToCart} disabled={totalPrice === 0}>🛒 Carrito</Button>
-            </div>
-          </Card>
-        </Col>
+            <Col md={4} className="d-flex flex-column">
+                <Card className="shadow-lg border-0 bg-white h-100 w-100">
+                    <Card.Header className="text-white fw-bold py-3 d-flex align-items-center gap-2" style={{backgroundColor: '#1c2f87'}}>
+                        <Zap size={20} /> Asesor IA
+                    </Card.Header>
+                    
+                    <Card.Body className="p-0 d-flex flex-column flex-grow-1" style={{ minHeight: '500px' }}>
+                        
+                        <div className="flex-grow-1 overflow-auto p-3" style={{ maxHeight: '70vh' }}>
+                            {chatMessages.map((msg, idx) => (
+                                <div key={idx} className={`d-flex mb-3 ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
+                                    {msg.role === 'assistant' && <Bot size={24} className="text-primary me-2 mt-1" />}
+                                    <div className={`p-3 rounded-4 shadow-sm ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-light text-dark border'}`} style={{ maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
+                                        {msg.content}
+                                    </div>
+                                </div>
+                            ))}
+                            {isChatLoading && (
+                                <div className="text-muted small ms-2 d-flex align-items-center gap-2">
+                                    <Loader2 size={16} className="animate-spin text-primary" /> Pensando...
+                                </div>
+                            )}
+                            <div ref={chatEndRef} />
+                        </div>
 
-        <Col md={5} className="mt-4 mt-md-0">
-          <Card className="h-100 shadow border-0" style={{ maxHeight: '800px' }}>
-            <Card.Header className="bg-dark text-warning fw-bold d-flex justify-content-between">
-              <span>⚡ Técnico Virtual IA</span>
-            </Card.Header>
-            <Card.Body className="bg-light overflow-auto d-flex flex-column">
-              <div className="flex-grow-1">
-                {messages.map((msg, idx) => (
-                  <div key={idx} className={`d-flex mb-3 ${msg.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
-                    <div className={`p-3 rounded shadow-sm ${msg.sender === 'user' ? 'bg-primary text-white' : 'bg-white text-dark border'}`} style={{ maxWidth: '85%' }}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                {isTyping && <div className="text-muted small ms-2">Analizando inventario... 🔧</div>}
-                <div ref={chatEndRef} />
-              </div>
-            </Card.Body>
-            <Card.Footer className="bg-white">
-              <Form onSubmit={handleChatSubmit} className="d-flex gap-2">
-                <Form.Control 
-                  placeholder="Ej: PC para oficina barato..." 
-                  value={inputChat} 
-                  onChange={(e) => setInputChat(e.target.value)}
-                  disabled={isTyping}
-                />
-                <Button type="submit" variant="warning" disabled={isTyping}>➤</Button>
-              </Form>
-            </Card.Footer>
-          </Card>
-        </Col>
-      </Row>
+                        <div className="p-2 bg-light border-top mt-auto">
+                             <Form onSubmit={handleChatSubmit}>
+                                <InputGroup>
+                                    <Form.Control
+                                        placeholder="Ej: PC para Fortnite..."
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        disabled={isChatLoading}
+                                    />
+                                    <Button variant="warning" type="submit" disabled={isChatLoading}>
+                                        {isChatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                    </Button>
+                                </InputGroup>
+                            </Form>
+                        </div>
+                    </Card.Body>
+                </Card>
+            </Col>
+        </Row>
     </Container>
   );
 }
