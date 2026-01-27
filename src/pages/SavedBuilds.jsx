@@ -84,6 +84,8 @@ export default function SavedBuilds() {
     try {
       const doc = new jsPDF();
       const fecha = new Date(build.created_at).toLocaleDateString();
+      // CORRECCIÓN AQUÍ: Aseguramos que el ID sea string
+      const safeId = String(build.id); 
 
       // Header Corporativo
       doc.setFillColor(33, 37, 41); // Dark Gray
@@ -97,7 +99,7 @@ export default function SavedBuilds() {
       // Info
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.text(`ID Cotización: #${build.id.slice(0, 8)}`, 14, 40);
+      doc.text(`ID Cotización: #${safeId}`, 14, 40);
       doc.text(`Fecha: ${fecha}`, 14, 48);
 
       const components = [
@@ -131,7 +133,7 @@ export default function SavedBuilds() {
       doc.setFont("helvetica", "bold");
       doc.text(`TOTAL: $${(build.total_price || build.total || 0).toLocaleString('es-CL')}`, 14, finalY);
 
-      doc.save(`Cotizacion_${build.id.slice(0,6)}.pdf`);
+      doc.save(`Cotizacion_${safeId}.pdf`);
     } catch (error) {
       console.error(error);
     }
@@ -213,7 +215,8 @@ export default function SavedBuilds() {
               <Monitor size={20} className="text-white-50" />
               <div>
                 <h5 className="mb-0 fw-bold" style={{ fontSize: '1rem' }}>{b.nombre || "Workstation Personalizada"}</h5>
-                <small className="text-white-50" style={{ fontSize: '0.75rem' }}>ID: {b.id.slice(0,8)} • {new Date(b.created_at).toLocaleDateString()}</small>
+                {/* CORRECCIÓN AQUÍ: String(b.id) para evitar el crash */}
+                <small className="text-white-50" style={{ fontSize: '0.75rem' }}>ID: {String(b.id).slice(0,8)} • {new Date(b.created_at).toLocaleDateString()}</small>
               </div>
             </div>
             <Button variant="link" className="text-danger p-0" onClick={() => deleteBuild(b.id)}>
