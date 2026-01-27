@@ -3,7 +3,7 @@ import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Navbar, Nav, Container, NavDropdown, Badge, Button, Offcanvas, ListGroup } from 'react-bootstrap';
 import { supabase } from './supabase'; 
 import { useCart } from './context/CartContext';
-import { Cpu, Home, Grid, FileText, Shield, Bot, ShoppingCart, LogIn, LogOut, User, Trash2, CheckCircle } from 'lucide-react';
+import { Cpu, Home, Grid, FileText, Shield, Bot, ShoppingCart, LogIn, Trash2, CheckCircle } from 'lucide-react';
 
 // Importación de Páginas
 import ProductDetail from './pages/ProductDetail';
@@ -14,6 +14,9 @@ import Builder from './pages/Builder';
 import SavedBuilds from './pages/SavedBuilds';
 import Components from './pages/Components';
 import AdminPanel from './pages/AdminPanel';
+
+// Importación del Nuevo Menú de Usuario
+import UserMenu from './components/UserMenu';
 
 const Navigation = () => {
   const { cart, showCart, setShowCart, removeFromCart, total } = useCart();
@@ -46,7 +49,6 @@ const Navigation = () => {
 
   return (
     <>
-      {/* --- TRUCO CSS PARA OCULTAR LA FLECHA DEL DROPDOWN --- */}
       <style type="text/css">
         {`
           .navbar-nav .dropdown-toggle::after {
@@ -69,7 +71,6 @@ const Navigation = () => {
                 <Home size={18} /> Inicio
               </Nav.Link>
               
-              {/* DROPDOWN SIN FLECHA */}
               <NavDropdown title={<span className="d-flex align-items-center gap-1"><Grid size={18} /> Componentes</span>} id="nav-dropdown">
                 <NavDropdown.Item as={Link} to="/componentes/gpu">Tarjetas Gráficas</NavDropdown.Item>
                 <NavDropdown.Item as={Link} to="/componentes/cpu">Procesadores</NavDropdown.Item>
@@ -110,23 +111,16 @@ const Navigation = () => {
 
               <div className="vr d-none d-lg-block mx-2 bg-secondary opacity-50"></div>
 
+              {/* --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE --- */}
               {user ? (
-                <NavDropdown 
-                    title={<span className="d-flex align-items-center gap-2"><div className="bg-secondary rounded-circle p-1"><User size={16} /></div> {role === 'admin' ? 'Admin' : 'Usuario'}</span>} 
-                    id="user-dropdown" 
-                    align="end"
-                >
-                  <NavDropdown.Item disabled className="small text-muted">{user.email}</NavDropdown.Item>
-                  <NavDropdown.Divider />
-                  <NavDropdown.Item onClick={() => supabase.auth.signOut()} className="text-danger d-flex align-items-center gap-2">
-                    <LogOut size={16} /> Cerrar Sesión
-                  </NavDropdown.Item>
-                </NavDropdown>
+                // Usamos el nuevo componente UserMenu pasando el usuario dentro de un objeto session
+                <UserMenu session={{ user }} />
               ) : (
                 <Button as={Link} to="/login" variant="primary" size="sm" className="d-flex align-items-center gap-2 px-3">
                     <LogIn size={18} /> Entrar
                 </Button>
               )}
+              {/* -------------------------------------- */}
             </Nav>
           </Navbar.Collapse>
         </Container>
