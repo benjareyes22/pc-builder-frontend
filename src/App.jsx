@@ -15,8 +15,8 @@ import SavedBuilds from './pages/SavedBuilds';
 import Components from './pages/Components';
 import AdminPanel from './pages/AdminPanel';
 
-// Importación del Nuevo Menú de Usuario
-import UserMenu from './components/UserMenu';
+// --- IMPORTANTE: Aquí importamos el menú nuevo ---
+import UserMenu from './components/UserMenu'; 
 
 const Navigation = () => {
   const { cart, showCart, setShowCart, removeFromCart, total } = useCart();
@@ -111,16 +111,15 @@ const Navigation = () => {
 
               <div className="vr d-none d-lg-block mx-2 bg-secondary opacity-50"></div>
 
-              {/* --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE --- */}
+              {/* --- AQUÍ ESTÁ EL MENÚ NUEVO --- */}
               {user ? (
-                // Usamos el nuevo componente UserMenu pasando el usuario dentro de un objeto session
                 <UserMenu session={{ user }} />
               ) : (
                 <Button as={Link} to="/login" variant="primary" size="sm" className="d-flex align-items-center gap-2 px-3">
                     <LogIn size={18} /> Entrar
                 </Button>
               )}
-              {/* -------------------------------------- */}
+              {/* ------------------------------- */}
             </Nav>
           </Navbar.Collapse>
         </Container>
