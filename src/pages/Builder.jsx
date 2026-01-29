@@ -22,13 +22,17 @@ export default function Builder() {
   const [total, setTotal] = useState(0);
   const [nombreCotizacion, setNombreCotizacion] = useState("");
   
-  // Chat IA
+  // Chat IA States
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([
       { role: 'assistant', content: "¡Hola! Soy tu Asesor Experto en Hardware. Cuéntame qué uso le darás al PC (ej: Gaming, Edición, Oficina) y tu presupuesto aproximado. Yo me encargo del resto." }
   ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef(null);
+
+  // --- NUEVO: ESTADOS PARA VALIDACIÓN MANUAL ---
+  const [validationResult, setValidationResult] = useState(null); // { status: 'OK'|'WARNING'|'DANGER', message: '' }
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
   useEffect(() => { calcularTotal(); }, [seleccionados]);
@@ -49,6 +53,8 @@ export default function Builder() {
   const handleSelect = (categoria, productoId) => {
       const producto = categoriasData[categoria].find(p => p.id === parseInt(productoId));
       setSeleccionados(prev => ({ ...prev, [categoria]: producto }));
+      // Limpiamos la validación anterior si cambia algo para no confundir
+      setValidationResult(null);
   };
 
   const calcularTotal = () => {
@@ -91,6 +97,62 @@ export default function Builder() {
     alert("Agregado al carrito.");
   };
 
+  // --- NUEVA FUNCIÓN DE VALIDACIÓN MANUAL ---
+  const handleValidateBuild = async () => {
+    const partesActuales = Object.values(seleccionados).filter(p => p !== undefined);
+    
+    // Permitimos validar aunque sea con 1 pieza para que pruebe, pero idealmente 2
+    if (partesActuales.length < 1) {
+      alert("Selecciona al menos un componente para validar.");
+      return;
+    }
+
+    setIsValidating(true);
+    setValidationResult(null);
+
+    try {
+      const listaPiezas = partesActuales.map(p => `${p.categoria}: ${p.nombre}`).join(', ');
+
+      const promptValidacion = `
+        Actúa como un Técnico Experto en Hardware PC.
+        Analiza la compatibilidad de esta lista de componentes seleccionados:
+        [ ${listaPiezas} ]
+
+        Tu tarea es detectar errores fatales (ej: Socket CPU incompatible con Placa, RAM DDR4 en slot DDR5) o advertencias (ej: Fuente de poder insuficiente, Cuello de botella, falta de componentes clave).
+
+        Responde ESTRICTAMENTE en formato JSON con esta estructura:
+        {
+          "status": "DANGER" | "WARNING" | "OK",
+          "title": "Título corto del resultado",
+          "message": "Explicación técnica breve."
+        }
+
+        Reglas:
+        - Usa "DANGER" (Rojo) si las piezas NO ENCAJAN físicamente o la PC no encenderá.
+        - Usa "WARNING" (Amarillo) si funciona pero hay cuellos de botella o faltan piezas importantes.
+        - Usa "OK" (Verde) si la selección actual es compatible (aunque falten piezas, lo que hay combina bien).
+        - NO escribas nada fuera del JSON.
+      `;
+
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const result = await model.generateContent(promptValidacion);
+      const text = result.response.text();
+
+      // Limpieza del JSON
+      const cleanJson = text.replace(/```json|```/g, '').trim();
+      const data = JSON.parse(cleanJson);
+      
+      setValidationResult(data);
+
+    } catch (error) {
+      console.error("Error validando:", error);
+      alert("Error al conectar con el Técnico Virtual. Intenta de nuevo.");
+    } finally {
+      setIsValidating(false);
+    }
+  };
+  // ------------------------------------------
+
   const handleChatSubmit = async (e) => {
       e.preventDefault();
       if (!chatInput.trim()) return;
@@ -101,7 +163,6 @@ export default function Builder() {
       setIsChatLoading(true);
 
       try {
-          // Contexto para la IA
           let inventarioContext = "--- INVENTARIO DISPONIBLE (ID | NOMBRE | PRECIO) ---\n";
           for (const [cat, prods] of Object.entries(categoriasData)) {
               inventarioContext += `\nCATEGORÍA: ${cat}\n`;
@@ -112,39 +173,15 @@ export default function Builder() {
           
           inventarioContext += `
           \n--- ROL ---
-          Actúa como un Asesor Técnico Senior de PC-Builder AI. Tu tono debe ser profesional, útil y persuasivo.
-          
-          --- OBJETIVO ---
-          Recomendar una configuración de PC COMPLETA basada estrictamente en el inventario de arriba y la solicitud del usuario.
-          
-          --- REGLAS IMPORTANTES ---
-          1. SOLO recomienda productos que estén en la lista de "INVENTARIO DISPONIBLE".
-          2. Si el presupuesto del usuario es bajo, prioriza rendimiento sobre estética.
-          3. Si el usuario pide algo imposible con el stock actual, explícalo amablemente.
-          4. Justifica brevemente la elección de CPU y GPU.
-          5. **IMPORTANTE:** NUNCA menciones "JSON", "IDs", "código" o "bloques ocultos" en tu respuesta de texto. Si te falta información para armar el PC, solo pídela amablemente.
-          
-          --- FORMATO DE RESPUESTA ---
-          - Parte 1 (Texto Visible): Saluda y explica la configuración (o pide más datos).
-          - Parte 2 (Código Oculto): SOLO SI RECOMIENDAS PIEZAS, agrega al final un bloque JSON estricto.
-          
-          El bloque JSON debe verse EXACTAMENTE así (no lo expliques, solo ponlo):
+          Actúa como un Asesor Técnico Senior de PC-Builder AI.
+          \n--- FORMATO DE RESPUESTA ---
+          Si recomiendas piezas, agrega al final un bloque JSON:
           JSON_START
-          {
-            "CPU": 12,
-            "Motherboard": 45,
-            "RAM": 32,
-            "GPU": 55,
-            "Storage": 22,
-            "PSU": 10,
-            "Case": 5
-          }
+          { "CPU": 12, "Motherboard": 45, ... }
           JSON_END
-          
-          --- MENSAJE DEL USUARIO ---
+          \n--- MENSAJE DEL USUARIO ---
           "${chatInput}"`;
 
-          // USANDO EL MODELO QUE TE FUNCIONA
           const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
           const result = await model.generateContent(inventarioContext);
           const responseText = result.response.text();
@@ -178,7 +215,7 @@ export default function Builder() {
 
       } catch (error) {
           console.error("Error Gemini:", error);
-          setChatMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un problema de conexión. Intenta de nuevo." }]);
+          setChatMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un problema de conexión." }]);
       } finally {
           setIsChatLoading(false);
       }
@@ -197,10 +234,45 @@ export default function Builder() {
         </h2>
 
         <Row className="h-100 align-items-stretch"> 
+            {/* COLUMNA IZQUIERDA: ARMADOR */}
             <Col md={8} className="mb-4 mb-md-0">
                 <Card className="shadow-lg border-0 h-100">
                     <Card.Header className="text-white fw-bold py-3" style={{backgroundColor: '#e56503'}}>Componentes</Card.Header>
                     <Card.Body className="p-4 bg-light">
+                        
+                        {/* --- SECCIÓN BOTÓN Y ALERTA --- */}
+                        <div className="mb-4">
+                            <Button 
+                                variant="outline-primary" 
+                                className="w-100 mb-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm"
+                                onClick={handleValidateBuild}
+                                disabled={isValidating}
+                                style={{ borderRadius: '10px' }}
+                            >
+                                {isValidating ? <Loader2 className="animate-spin" /> : <Shield size={20} />}
+                                {isValidating ? " Analizando Compatibilidad..." : " Verificar Compatibilidad con IA"}
+                            </Button>
+
+                            {validationResult && (
+                                <div className={`alert ${
+                                    validationResult.status === 'DANGER' ? 'alert-danger border-danger' : 
+                                    validationResult.status === 'WARNING' ? 'alert-warning border-warning' : 
+                                    'alert-success border-success'
+                                } shadow-sm fade show`} role="alert" style={{ borderLeftWidth: '5px' }}>
+                                    <h5 className="alert-heading fw-bold d-flex align-items-center gap-2">
+                                        {validationResult.status === 'DANGER' && '🛑 ERROR DE COMPATIBILIDAD'}
+                                        {validationResult.status === 'WARNING' && '⚠️ ADVERTENCIA TÉCNICA'}
+                                        {validationResult.status === 'OK' && '✅ TODO COMPATIBLE'}
+                                    </h5>
+                                    <hr />
+                                    <p className="mb-0 fw-medium">
+                                        <strong>{validationResult.title}:</strong> {validationResult.message}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        {/* ------------------------------- */}
+
                         <Form>
                             {Object.entries(categoriasMap).map(([key, label]) => (
                                 <Form.Group key={key} className="mb-3">
@@ -237,6 +309,7 @@ export default function Builder() {
                 </Card>
             </Col>
 
+            {/* COLUMNA DERECHA: CHAT */}
             <Col md={4} className="d-flex flex-column">
                 <Card className="shadow-lg border-0 bg-white h-100 w-100">
                     <Card.Header className="text-white fw-bold py-3 d-flex align-items-center gap-2" style={{backgroundColor: '#1c2f87'}}>
@@ -244,7 +317,6 @@ export default function Builder() {
                     </Card.Header>
                     
                     <Card.Body className="p-0 d-flex flex-column flex-grow-1" style={{ minHeight: '500px' }}>
-                        
                         <div className="flex-grow-1 overflow-auto p-3" style={{ maxHeight: '70vh' }}>
                             {chatMessages.map((msg, idx) => (
                                 <div key={idx} className={`d-flex mb-3 ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
