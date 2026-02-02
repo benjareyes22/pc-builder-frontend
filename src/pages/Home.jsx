@@ -64,11 +64,15 @@ export default function Home() {
             </Card>
           </Col>
           <Col md={4}>
+            {/* Mantenemos bg-white para que el contenido oscuro se lea bien */}
             <Card className="h-100 border-0 shadow-sm p-4 bg-white text-center">
               <div className="mb-3 d-flex justify-content-center">
-                <Zap size={55} className="text-warning" />
+                {/* CAMBIO AQUÍ: Ícono Rojo (text-danger) */}
+                <Zap size={55} className="text-danger" />
               </div>
+              {/* Título Negro (text-dark) */}
               <Card.Title className="fw-bolder h4 text-dark">Optimización Real</Card.Title>
+              {/* Tu estilo de texto exacto */}
               <Card.Text style={{ color: '#1f2937', fontWeight: '500' }}>
                 Priorizamos rendimiento por dólar. Si tu presupuesto es ajustado, la IA recortará en estética para darte más FPS.
               </Card.Text>

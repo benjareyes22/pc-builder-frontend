@@ -5,14 +5,14 @@
 /* === TUS ESTILOS CLÁSICOS (RECUPERADOS) === */
 
 body {
-  background-color: rgb(83, 83, 184); /* El morado clásico */
-  color: white;
+  background-color: rgba(0, 0, 0, 0.719); /* El morado clásico */
+  color: rgb(255, 255, 255);
   font-family: sans-serif; /* Agregué esto para que se vea limpio */
 }
 
 /* Forzamos que las tarjetas usen tu color verde */
 .card {
-  background-color: rgb(71, 198, 130) !important;
+  background-color: rgb(243, 202, 19) !important;
   border: none;
   transition: transform 0.3s;
   color: white !important; /* Texto blanco en las tarjetas */

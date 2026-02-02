@@ -25,13 +25,12 @@ export default function Builder() {
   // Chat IA States
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([
-      { role: 'assistant', content: "¡Hola! Soy tu Asesor Experto en Hardware. Cuéntame qué uso le darás al PC (ej: Gaming, Edición, Oficina) y tu presupuesto aproximado. Yo me encargo del resto." }
+      { role: 'assistant', content: "¡Hola! Soy tu Asesor Experto en Hardware. Cuéntame qué uso le darás al PC (ej: Gaming, Edición) y tu presupuesto. Revisaré el stock real para ver qué podemos armar." }
   ]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef(null);
 
-  // --- NUEVO: ESTADOS PARA VALIDACIÓN MANUAL ---
-  const [validationResult, setValidationResult] = useState(null); // { status: 'OK'|'WARNING'|'DANGER', message: '' }
+  const [validationResult, setValidationResult] = useState(null); 
   const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
@@ -53,7 +52,6 @@ export default function Builder() {
   const handleSelect = (categoria, productoId) => {
       const producto = categoriasData[categoria].find(p => p.id === parseInt(productoId));
       setSeleccionados(prev => ({ ...prev, [categoria]: producto }));
-      // Limpiamos la validación anterior si cambia algo para no confundir
       setValidationResult(null);
   };
 
@@ -97,11 +95,10 @@ export default function Builder() {
     alert("Agregado al carrito.");
   };
 
-  // --- NUEVA FUNCIÓN DE VALIDACIÓN MANUAL ---
+  // --- VALIDACIÓN DE COMPATIBILIDAD ---
   const handleValidateBuild = async () => {
     const partesActuales = Object.values(seleccionados).filter(p => p !== undefined);
     
-    // Permitimos validar aunque sea con 1 pieza para que pruebe, pero idealmente 2
     if (partesActuales.length < 1) {
       alert("Selecciona al menos un componente para validar.");
       return;
@@ -118,8 +115,6 @@ export default function Builder() {
         Analiza la compatibilidad de esta lista de componentes seleccionados:
         [ ${listaPiezas} ]
 
-        Tu tarea es detectar errores fatales (ej: Socket CPU incompatible con Placa, RAM DDR4 en slot DDR5) o advertencias (ej: Fuente de poder insuficiente, Cuello de botella, falta de componentes clave).
-
         Responde ESTRICTAMENTE en formato JSON con esta estructura:
         {
           "status": "DANGER" | "WARNING" | "OK",
@@ -130,15 +125,13 @@ export default function Builder() {
         Reglas:
         - Usa "DANGER" (Rojo) si las piezas NO ENCAJAN físicamente o la PC no encenderá.
         - Usa "WARNING" (Amarillo) si funciona pero hay cuellos de botella o faltan piezas importantes.
-        - Usa "OK" (Verde) si la selección actual es compatible (aunque falten piezas, lo que hay combina bien).
+        - Usa "OK" (Verde) si la selección actual es compatible.
         - NO escribas nada fuera del JSON.
       `;
 
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       const result = await model.generateContent(promptValidacion);
       const text = result.response.text();
-
-      // Limpieza del JSON
       const cleanJson = text.replace(/```json|```/g, '').trim();
       const data = JSON.parse(cleanJson);
       
@@ -151,8 +144,8 @@ export default function Builder() {
       setIsValidating(false);
     }
   };
-  // ------------------------------------------
 
+  // --- LÓGICA DEL CHATBOT ---
   const handleChatSubmit = async (e) => {
       e.preventDefault();
       if (!chatInput.trim()) return;
@@ -163,22 +156,32 @@ export default function Builder() {
       setIsChatLoading(true);
 
       try {
-          let inventarioContext = "--- INVENTARIO DISPONIBLE (ID | NOMBRE | PRECIO) ---\n";
+          let inventarioContext = "--- INVENTARIO DISPONIBLE Y PRECIOS (CLP) ---\n";
           for (const [cat, prods] of Object.entries(categoriasData)) {
               inventarioContext += `\nCATEGORÍA: ${cat}\n`;
               prods.forEach(p => {
-                  inventarioContext += `- ID:${p.id} | ${p.nombre} | $${parseInt(p.precio).toLocaleString('es-CL')}\n`;
+                  inventarioContext += `- ID:${p.id} | ${p.nombre} | PRECIO: $${parseInt(p.precio)}\n`;
               });
           }
           
           inventarioContext += `
           \n--- ROL ---
-          Actúa como un Asesor Técnico Senior de PC-Builder AI.
-          \n--- FORMATO DE RESPUESTA ---
-          Si recomiendas piezas, agrega al final un bloque JSON:
+          Actúa como un Asesor Técnico HONESTO de PC-Builder AI. Tienes acceso al stock real.
+
+          --- REGLAS CRÍTICAS ---
+          1. **CHEQUEO DE PRESUPUESTO:** Si el usuario pide un PC por un monto específico (ej: "PC de 100.000"), SUMA el precio de los componentes mínimos.
+             - Si el costo real supera el presupuesto, **RECHAZA** la solicitud educadamente y **NO GENERES JSON**.
+          
+          2. **SOLO STOCK REAL:** No inventes componentes. Usa solo los IDs de la lista.
+
+          3. **LIMPIEZA:** Si el usuario pide "Armar un PC", asume que quiere una cotización NUEVA desde cero.
+
+          --- FORMATO DE RESPUESTA SI ES POSIBLE ARMARLO ---
+          Responde con texto explicativo y AL FINAL agrega este JSON:
           JSON_START
-          { "CPU": 12, "Motherboard": 45, ... }
+          { "CPU": ID, "Motherboard": ID, "RAM": ID, ... }
           JSON_END
+          
           \n--- MENSAJE DEL USUARIO ---
           "${chatInput}"`;
 
@@ -193,7 +196,7 @@ export default function Builder() {
               finalText = responseText.replace(/JSON_START[\s\S]*?JSON_END/, "").trim();
               try {
                   const selectionData = JSON.parse(jsonMatch[1]);
-                  const nuevaSeleccion = { ...seleccionados };
+                  const nuevaSeleccion = {}; 
                   let itemsEncontrados = 0;
                   
                   for (const [cat, id] of Object.entries(selectionData)) {
@@ -206,7 +209,7 @@ export default function Builder() {
                   
                   if (itemsEncontrados > 0) {
                       setSeleccionados(nuevaSeleccion);
-                      finalText += "\n\n✅ ¡He actualizado la tabla con las piezas recomendadas!";
+                      finalText += "\n\n✅ ¡He actualizado la tabla con la nueva cotización!";
                   }
               } catch (err) { console.error("Error JSON:", err); }
           }
@@ -215,7 +218,7 @@ export default function Builder() {
 
       } catch (error) {
           console.error("Error Gemini:", error);
-          setChatMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un problema de conexión." }]);
+          setChatMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve un problema técnico de conexión." }]);
       } finally {
           setIsChatLoading(false);
       }
@@ -225,62 +228,81 @@ export default function Builder() {
 
   if (loading) return <Container className="text-center mt-5"><Spinner animation="border" variant="info" /></Container>;
 
-  const categoriasMap = { 'CPU': 'Procesador', 'Motherboard': 'Placa Madre', 'RAM': 'RAM', 'GPU': 'Video', 'Storage': 'Disco', 'PSU': 'Fuente', 'Case': 'Gabinete' };
+  const categoriasMap = { 'CPU': 'Procesador', 'Motherboard': 'Placa Madre', 'RAM': 'RAM', 'GPU': 'Tarjeta de Video', 'Storage': 'SSD "Unidad De Estado Solido"', 'PSU': 'Fuente', 'Case': 'Gabinete' };
 
   return (
     <Container className="mt-4 pb-5">
-        <h2 className="section-title text-center mb-4 d-flex align-items-center justify-content-center gap-2" style={{color: '#1c2f87'}}>
-            <Shield size={28} /> Armador de PC Inteligente
+        <style>
+            {`
+                /* BOTÓN VERIFICAR: BLANCO POR DEFECTO, NEGRO AL PASAR EL MOUSE */
+                .btn-verify-custom {
+                    color: black !important; /* Letras blancas */
+                    border: 2px solid black;
+                    background-color: transparent;
+                    transition: 0.3s;
+                }
+                .btn-verify-custom:hover {
+                    color: black !important; /* Letras negras en hover */
+                    background-color: white;
+                    border-color: white;
+                }
+                .btn-verify-custom:disabled {
+                    color: #ddd !important;
+                    border-color: #aaa;
+                }
+            `}
+        </style>
+
+        <h2 className="section-title text-center mb-4 d-flex align-items-center justify-content-center gap-2 text-white">
+            <Shield size={28} className="text-warning" /> Armador Inteligente
         </h2>
 
         <Row className="h-100 align-items-stretch"> 
-            {/* COLUMNA IZQUIERDA: ARMADOR */}
             <Col md={8} className="mb-4 mb-md-0">
+                {/* FORZAMOS FONDO AMARILLO/NARANJA SEGÚN TU CAPTURA, PERO CONTROLADO */}
                 <Card className="shadow-lg border-0 h-100">
-                    <Card.Header className="text-white fw-bold py-3" style={{backgroundColor: '#e56503'}}>Componentes</Card.Header>
-                    <Card.Body className="p-4 bg-light">
-                        
-                        {/* --- SECCIÓN BOTÓN Y ALERTA --- */}
+                    <Card.Header className="text-dark fw-bold py-3" style={{backgroundColor: '#e56503', color: 'white'}}>Componentes</Card.Header>
+                    {/* AQUI ESTÁ EL TRUCO: FONDO AMARILLO PERO LETRAS NEGRAS FORZADAS */}
+                    <Card.Body className="p-4" style={{ backgroundColor: '#ffc107' }}> 
                         <div className="mb-4">
+                            {/* BOTÓN CON ESTILO PERSONALIZADO */}
                             <Button 
-                                variant="outline-primary" 
-                                className="w-100 mb-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm"
+                                className="w-100 mb-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm btn-verify-custom"
                                 onClick={handleValidateBuild}
                                 disabled={isValidating}
-                                style={{ borderRadius: '10px' }}
                             >
                                 {isValidating ? <Loader2 className="animate-spin" /> : <Shield size={20} />}
-                                {isValidating ? " Analizando Compatibilidad..." : " Verificar Compatibilidad con IA"}
+                                {isValidating ? " Analizando..." : " Verificar Compatibilidad con IA"}
                             </Button>
 
                             {validationResult && (
                                 <div className={`alert ${
-                                    validationResult.status === 'DANGER' ? 'alert-danger border-danger' : 
-                                    validationResult.status === 'WARNING' ? 'alert-warning border-warning' : 
-                                    'alert-success border-success'
-                                } shadow-sm fade show`} role="alert" style={{ borderLeftWidth: '5px' }}>
+                                    validationResult.status === 'DANGER' ? 'alert-danger bg-danger text-white border-0' : 
+                                    validationResult.status === 'WARNING' ? 'alert-warning bg-light text-dark border-0' : 
+                                    'alert-success bg-success text-white border-0'
+                                } shadow-sm fade show`} role="alert">
                                     <h5 className="alert-heading fw-bold d-flex align-items-center gap-2">
-                                        {validationResult.status === 'DANGER' && '🛑 ERROR DE COMPATIBILIDAD'}
-                                        {validationResult.status === 'WARNING' && '⚠️ ADVERTENCIA TÉCNICA'}
-                                        {validationResult.status === 'OK' && '✅ TODO COMPATIBLE'}
+                                        {validationResult.status === 'DANGER' && '🛑 ERROR'}
+                                        {validationResult.status === 'WARNING' && '⚠️ CUIDADO'}
+                                        {validationResult.status === 'OK' && '✅ EXCELENTE'}
                                     </h5>
-                                    <hr />
-                                    <p className="mb-0 fw-medium">
-                                        <strong>{validationResult.title}:</strong> {validationResult.message}
-                                    </p>
+                                    <p className="mb-0 fw-medium"><strong>{validationResult.title}:</strong> {validationResult.message}</p>
                                 </div>
                             )}
                         </div>
-                        {/* ------------------------------- */}
 
                         <Form>
                             {Object.entries(categoriasMap).map(([key, label]) => (
                                 <Form.Group key={key} className="mb-3">
-                                    <Form.Label className="fw-bold text-dark">{label}</Form.Label>
+                                    {/* --- AQUÍ ESTÁ EL CAMBIO: LETRAS NEGRAS SÍ O SÍ --- */}
+                                    <Form.Label className="fw-bold fs-5" style={{ color: 'black', textShadow: 'none' }}>
+                                        {label}
+                                    </Form.Label>
                                     <Form.Select 
                                         value={seleccionados[key]?.id || ""} 
                                         onChange={(e) => handleSelect(key, e.target.value)}
-                                        className="border-secondary shadow-sm"
+                                        className="bg-dark text-white border-secondary"
+                                        style={{ border: '2px solid #333' }}
                                     >
                                         <option value="">Seleccionar...</option>
                                         {categoriasData[key]?.map(prod => (
@@ -293,15 +315,15 @@ export default function Builder() {
                             ))}
                         </Form>
                     </Card.Body>
-                    <Card.Footer className="bg-white p-3 d-flex flex-column gap-3 mt-auto">
-                        <div className="bg-dark text-white p-3 rounded text-center fw-bold fs-4 shadow-sm">
+                    <Card.Footer className="bg-dark border-top border-secondary p-3 d-flex flex-column gap-3 mt-auto">
+                        <div className="bg-black text-warning p-3 rounded text-center fw-bold fs-4 border border-warning">
                             Total: ${total.toLocaleString('es-CL')}
                         </div>
                         <div className="d-flex gap-3">
-                            <Button variant="secondary" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleSave}>
+                            <Button variant="light" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleSave}>
                                 <Save size={20} /> Guardar
                             </Button>
-                            <Button variant="success" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2" onClick={handleAddToCart}>
+                            <Button variant="warning" size="lg" className="w-50 fw-bold d-flex align-items-center justify-content-center gap-2 text-dark" onClick={handleAddToCart}>
                                 <ShoppingCart size={20} /> Carrito
                             </Button>
                         </div>
@@ -309,32 +331,27 @@ export default function Builder() {
                 </Card>
             </Col>
 
-            {/* COLUMNA DERECHA: CHAT */}
             <Col md={4} className="d-flex flex-column">
-                <Card className="shadow-lg border-0 bg-white h-100 w-100">
-                    <Card.Header className="text-white fw-bold py-3 d-flex align-items-center gap-2" style={{backgroundColor: '#1c2f87'}}>
-                        <Zap size={20} /> Asesor IA
+                <Card className="shadow-lg border-0 h-100 w-100" style={{ backgroundColor: '#1e1f22' }}>
+                    <Card.Header className="text-white fw-bold py-3 d-flex align-items-center gap-2 bg-black border-bottom border-secondary">
+                        <Zap size={20} className="text-warning" /> Asesor IA
                     </Card.Header>
                     
                     <Card.Body className="p-0 d-flex flex-column flex-grow-1" style={{ minHeight: '500px' }}>
                         <div className="flex-grow-1 overflow-auto p-3" style={{ maxHeight: '70vh' }}>
                             {chatMessages.map((msg, idx) => (
                                 <div key={idx} className={`d-flex mb-3 ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
-                                    {msg.role === 'assistant' && <Bot size={24} className="text-primary me-2 mt-1" />}
-                                    <div className={`p-3 rounded-4 shadow-sm ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-light text-dark border'}`} style={{ maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
+                                    {msg.role === 'assistant' && <Bot size={24} className="text-warning me-2 mt-1" />}
+                                    <div className={`p-3 rounded-4 shadow-sm ${msg.role === 'user' ? 'bg-warning text-dark' : 'bg-dark text-white border border-secondary'}`} style={{ maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
                                         {msg.content}
                                     </div>
                                 </div>
                             ))}
-                            {isChatLoading && (
-                                <div className="text-muted small ms-2 d-flex align-items-center gap-2">
-                                    <Loader2 size={16} className="animate-spin text-primary" /> Pensando...
-                                </div>
-                            )}
+                            {isChatLoading && <div className="text-muted small ms-2"><Loader2 size={16} className="animate-spin text-warning" /> Escribiendo...</div>}
                             <div ref={chatEndRef} />
                         </div>
 
-                        <div className="p-2 bg-light border-top mt-auto">
+                        <div className="p-2 bg-black border-top border-secondary mt-auto">
                              <Form onSubmit={handleChatSubmit}>
                                 <InputGroup>
                                     <Form.Control
@@ -342,6 +359,7 @@ export default function Builder() {
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
                                         disabled={isChatLoading}
+                                        className="bg-dark text-white border-secondary"
                                     />
                                     <Button variant="warning" type="submit" disabled={isChatLoading}>
                                         {isChatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

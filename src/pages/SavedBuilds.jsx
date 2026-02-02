@@ -200,8 +200,8 @@ export default function SavedBuilds() {
   return (
     <Container className="py-5">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-           Mis Proyectos <Badge bg="secondary" style={{ fontSize: '0.5em', verticalAlign: 'middle' }}>{builds.length}</Badge>
+        <h2 className="fw-bold text-white mb-0 d-flex align-items-center gap-2">
+          Mis Builds <Badge bg="secondary" style={{ fontSize: '0.5em', verticalAlign: 'middle' }}>{builds.length}</Badge>
         </h2>
         <Button as={Link} to="/cotizador" variant="dark" size="sm" className="d-flex align-items-center gap-2">
           <Plus size={16} /> Nuevo Proyecto
