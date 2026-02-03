@@ -23,6 +23,13 @@ export default function Register() {
       });
 
       if (error) throw error;
+
+      // --- FIX DEL BUG: DETECTAR SI EL USUARIO YA EXISTE ---
+      // Si Supabase devuelve un usuario pero "identities" está vacío,
+      // significa que el correo ya está registrado (en la mayoría de las configuraciones).
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        throw new Error("User already registered");
+      }
       
       setIsError(false);
       setMessage("¡Cuenta creada con éxito! Ahora puedes iniciar sesión.");
@@ -33,7 +40,14 @@ export default function Register() {
 
     } catch (error) {
       setIsError(true);
-      setMessage("Error: " + error.message);
+      // Traducimos el error al español para que se entienda clarito
+      if (error.message.includes("already registered") || error.message.includes("User already registered")) {
+        setMessage("⚠️ Este correo ya está ocupado. Intenta iniciar sesión.");
+      } else if (error.message.includes("Password")) {
+        setMessage("⚠️ La contraseña es muy débil (Mínimo 6 caracteres).");
+      } else {
+        setMessage("Error: " + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -78,13 +92,13 @@ export default function Register() {
             />
           </Form.Group>
 
-          {/* CAMBIO: Botón Azul (Primary) con texto blanco */}
+          {/* Botón Azul (Primary) con texto blanco */}
           <Button variant="primary" type="submit" className="w-100 fw-bold text-white" disabled={loading}>
             {loading ? 'Creando...' : 'Registrarme'}
           </Button>
         </Form>
 
-        {/* CAMBIO: Texto de abajo todo blanco */}
+        {/* Texto de abajo todo blanco */}
         <div className="text-center mt-3">
           <small className="text-white">
             ¿Ya tienes cuenta? <Link to="/login" className="text-white fw-bold text-decoration-underline">Inicia Sesión aquí</Link>
