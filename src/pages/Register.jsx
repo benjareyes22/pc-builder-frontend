@@ -23,7 +23,6 @@ export default function Register() {
       });
 
       if (error) throw error;
-
       
       setIsError(false);
       setMessage("¡Cuenta creada con éxito! Ahora puedes iniciar sesión.");
@@ -42,30 +41,32 @@ export default function Register() {
 
   return (
     <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
-      <Card className="shadow p-4" style={{ width: '100%', maxWidth: '400px' }}>
-        <h2 className="text-center mb-4 fw-bold text-warning">Crear Cuenta</h2>
+      {/* Tarjeta Oscura */}
+      <Card className="shadow p-4 border-secondary" style={{ width: '100%', maxWidth: '400px', backgroundColor: '#1e1f22' }}>
         
-        {/* Aquí mostramos las alertas */}
+        <h2 className="text-center mb-4 fw-bold text-white">Crear Cuenta</h2>
+        
         {message && (
-          <Alert variant={isError ? "danger" : "success"}>
+          <Alert variant={isError ? "danger" : "success"} className={isError ? "bg-danger text-white border-0" : "bg-success text-white border-0"}>
             {message}
           </Alert>
         )}
 
         <Form onSubmit={handleRegister}>
           <Form.Group className="mb-3">
-            <Form.Label>Correo Electrónico</Form.Label>
+            <Form.Label className="text-white">Correo Electrónico</Form.Label>
             <Form.Control 
               type="email" 
               placeholder="tu@email.com" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-dark text-white border-secondary"
             />
           </Form.Group>
 
           <Form.Group className="mb-4">
-            <Form.Label>Contraseña</Form.Label>
+            <Form.Label className="text-white">Contraseña</Form.Label>
             <Form.Control 
               type="password" 
               placeholder="Mínimo 6 caracteres" 
@@ -73,17 +74,20 @@ export default function Register() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+              className="bg-dark text-white border-secondary"
             />
           </Form.Group>
 
-          <Button variant="warning" type="submit" className="w-100 fw-bold" disabled={loading}>
+          {/* CAMBIO: Botón Azul (Primary) con texto blanco */}
+          <Button variant="primary" type="submit" className="w-100 fw-bold text-white" disabled={loading}>
             {loading ? 'Creando...' : 'Registrarme'}
           </Button>
         </Form>
 
+        {/* CAMBIO: Texto de abajo todo blanco */}
         <div className="text-center mt-3">
-          <small>
-            ¿Ya tienes cuenta? <Link to="/login">Inicia Sesión aquí</Link>
+          <small className="text-white">
+            ¿Ya tienes cuenta? <Link to="/login" className="text-white fw-bold text-decoration-underline">Inicia Sesión aquí</Link>
           </small>
         </div>
       </Card>
