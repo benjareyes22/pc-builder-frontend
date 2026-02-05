@@ -234,15 +234,14 @@ export default function Builder() {
     <Container className="mt-4 pb-5">
         <style>
             {`
-                /* BOTÓN VERIFICAR: BLANCO POR DEFECTO, NEGRO AL PASAR EL MOUSE */
                 .btn-verify-custom {
-                    color: black !important; /* Letras blancas */
+                    color: black !important;
                     border: 2px solid black;
                     background-color: transparent;
                     transition: 0.3s;
                 }
                 .btn-verify-custom:hover {
-                    color: black !important; /* Letras negras en hover */
+                    color: black !important;
                     background-color: white;
                     border-color: white;
                 }
@@ -253,19 +252,19 @@ export default function Builder() {
             `}
         </style>
 
+        {/* TÍTULO PRINCIPAL */}
         <h2 className="section-title text-center mb-4 d-flex align-items-center justify-content-center gap-2 text-white">
-            <Shield size={28} className="text-warning" /> Armador Inteligente
+            <Shield size={28} className="text-primary" /> Armador Inteligente
         </h2>
 
         <Row className="h-100 align-items-stretch"> 
+            
+            {/* IZQUIERDA: Componentes (AMARILLO - Estilo Construcción) */}
             <Col md={8} className="mb-4 mb-md-0">
-                {/* FORZAMOS FONDO AMARILLO/NARANJA SEGÚN TU CAPTURA, PERO CONTROLADO */}
                 <Card className="shadow-lg border-0 h-100">
                     <Card.Header className="text-dark fw-bold py-3" style={{backgroundColor: '#e56503', color: 'white'}}>Componentes</Card.Header>
-                    {/* AQUI ESTÁ EL TRUCO: FONDO AMARILLO PERO LETRAS NEGRAS FORZADAS */}
                     <Card.Body className="p-4" style={{ backgroundColor: '#ffc107' }}> 
                         <div className="mb-4">
-                            {/* BOTÓN CON ESTILO PERSONALIZADO */}
                             <Button 
                                 className="w-100 mb-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm btn-verify-custom"
                                 onClick={handleValidateBuild}
@@ -294,7 +293,6 @@ export default function Builder() {
                         <Form>
                             {Object.entries(categoriasMap).map(([key, label]) => (
                                 <Form.Group key={key} className="mb-3">
-                                    {/* --- AQUÍ ESTÁ EL CAMBIO: LETRAS NEGRAS SÍ O SÍ --- */}
                                     <Form.Label className="fw-bold fs-5" style={{ color: 'black', textShadow: 'none' }}>
                                         {label}
                                     </Form.Label>
@@ -331,27 +329,44 @@ export default function Builder() {
                 </Card>
             </Col>
 
+            {/* DERECHA: Asesor IA */}
             <Col md={4} className="d-flex flex-column">
-                <Card className="shadow-lg border-0 h-100 w-100" style={{ backgroundColor: '#1e1f22' }}>
-                    <Card.Header className="text-white fw-bold py-3 d-flex align-items-center gap-2 bg-black border-bottom border-secondary">
-                        <Zap size={20} className="text-warning" /> Asesor IA
+                
+                {/* 1. FONDO: Blanco (bg-white) */}
+                <Card className="shadow-lg border-0 h-100 w-100 bg-white">
+                    
+                    {/* 2. ENCABEZADO: Negro (bg-black) con texto Blanco (text-white) */}
+                    <Card.Header className="bg-black text-white fw-bold py-3 d-flex align-items-center gap-2 border-bottom border-secondary">
+                        <Zap size={20} className="text-primary" /> Asesor IA
                     </Card.Header>
                     
-                    <Card.Body className="p-0 d-flex flex-column flex-grow-1" style={{ minHeight: '500px' }}>
+                    {/* CUERPO: Fondo Blanco */}
+                    <Card.Body className="p-0 d-flex flex-column flex-grow-1" style={{ minHeight: '500px', backgroundColor: '#ffffff' }}>
                         <div className="flex-grow-1 overflow-auto p-3" style={{ maxHeight: '70vh' }}>
                             {chatMessages.map((msg, idx) => (
                                 <div key={idx} className={`d-flex mb-3 ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
-                                    {msg.role === 'assistant' && <Bot size={24} className="text-warning me-2 mt-1" />}
-                                    <div className={`p-3 rounded-4 shadow-sm ${msg.role === 'user' ? 'bg-warning text-dark' : 'bg-dark text-white border border-secondary'}`} style={{ maxWidth: '85%', whiteSpace: 'pre-wrap' }}>
+                                    {/* Icono del Bot */}
+                                    {msg.role === 'assistant' && <Bot size={24} className="text-primary me-2 mt-1" />}
+                                    
+                                    {/* 3. BURBUJAS */}
+                                    <div 
+                                        className={`p-3 rounded-4 shadow-sm ${
+                                            msg.role === 'user' 
+                                            ? 'bg-primary text-white'        // Usuario: Azul
+                                            : 'bg-dark text-white border border-secondary'  // IA: Negra (bg-dark) con texto blanco
+                                        }`} 
+                                        style={{ maxWidth: '85%', whiteSpace: 'pre-wrap' }}
+                                    >
                                         {msg.content}
                                     </div>
                                 </div>
                             ))}
-                            {isChatLoading && <div className="text-muted small ms-2"><Loader2 size={16} className="animate-spin text-warning" /> Escribiendo...</div>}
+                            {isChatLoading && <div className="text-muted small ms-2"><Loader2 size={16} className="animate-spin text-primary" /> Escribiendo...</div>}
                             <div ref={chatEndRef} />
                         </div>
 
-                        <div className="p-2 bg-black border-top border-secondary mt-auto">
+                        {/* INPUT: Fondo Blanco/Claro */}
+                        <div className="p-2 bg-white border-top mt-auto">
                              <Form onSubmit={handleChatSubmit}>
                                 <InputGroup>
                                     <Form.Control
@@ -359,9 +374,9 @@ export default function Builder() {
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
                                         disabled={isChatLoading}
-                                        className="bg-dark text-white border-secondary"
+                                        className="bg-light text-dark border-secondary"
                                     />
-                                    <Button variant="warning" type="submit" disabled={isChatLoading}>
+                                    <Button variant="primary" type="submit" disabled={isChatLoading}>
                                         {isChatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                                     </Button>
                                 </InputGroup>
